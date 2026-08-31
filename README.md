@@ -302,6 +302,7 @@ You can provide the token via:
 - [stonebranch_credential](#stonebranch_credential) - Authentication credentials
 - [stonebranch_variable](#stonebranch_variable) - Global variables
 - [stonebranch_business_service](#stonebranch_business_service) - Business service groups
+- [stonebranch_virtual_resource](#stonebranch_virtual_resource) - Concurrency control resources
 
 ### stonebranch_task_unix
 
@@ -553,6 +554,46 @@ Business services can be imported using the name:
 
 ```bash
 terraform import stonebranch_business_service.example "service-name"
+```
+
+### stonebranch_virtual_resource
+
+Manages a StoneBranch Virtual Resource for concurrency control. Note: the underlying UAC API endpoint for this resource is `/resources/virtual`, not `/resources/virtualresource`.
+
+#### Example Usage
+
+```hcl
+resource "stonebranch_virtual_resource" "db_connections" {
+  name    = "db-connections"
+  type    = "Renewable"
+  limit   = 5
+  summary = "Limits concurrent tasks connecting to the shared database"
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the virtual resource |
+| `type` | string | No | Type of virtual resource: `Renewable`, `Boundary`, or `Depletable` |
+| `limit` | number | No | Maximum concurrent usage allowed |
+| `summary` | string | No | Description of the virtual resource |
+| `opswise_groups` | list(string) | No | Business services this virtual resource belongs to |
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Virtual resources can be imported using the name:
+
+```bash
+terraform import stonebranch_virtual_resource.example "resource-name"
 ```
 
 ## Development
