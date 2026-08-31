@@ -34,6 +34,7 @@ This document outlines the development roadmap for the Stonebranch Universal Con
 | `stonebranch_task_monitor` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_stored_procedure` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_web_service` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_custom_day` | ✅ Complete | ✅ | ✅ |
 
 ### Implemented Data Sources
 
@@ -141,11 +142,11 @@ Resources for advanced scheduling with business calendars.
 | Resource | Description | Priority | Status |
 |----------|-------------|----------|--------|
 | `stonebranch_calendar` | Business calendars | P0 | ✅ Complete |
-| `stonebranch_custom_day` | Holiday/special day definitions | P1 | 🔲 Not Started |
+| `stonebranch_custom_day` | Holiday/special day definitions | P1 | ✅ Complete |
 
 ### Deliverables
 - [x] `stonebranch_calendar` resource with full CRUD
-- [ ] `stonebranch_custom_day` resource with full CRUD
+- [x] `stonebranch_custom_day` resource with full CRUD
 - [x] Calendar integration with triggers
 - [x] Acceptance tests for calendar resource
 
@@ -498,9 +499,9 @@ docs/
 | Task Types | 20 | 9 |
 | Trigger Types | 12 | 4 |
 | Connection Types | 5 | 2 |
-| Supporting Resources | 15 | 9 |
+| Supporting Resources | 15 | 10 |
 | Data Sources | 13 | 6 |
-| **Total** | **65** | **30** |
+| **Total** | **65** | **31** |
 
 ### Priority Breakdown
 
@@ -578,7 +579,7 @@ docs/
 
 ### v0.4.0 - Scheduling
 - [x] Calendar resource
-- [ ] Custom day resource
+- [x] Custom day resource
 - [x] Cron trigger
 
 ### v0.5.0 - Infrastructure

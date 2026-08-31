@@ -302,6 +302,7 @@ You can provide the token via:
 - [stonebranch_credential](#stonebranch_credential) - Authentication credentials
 - [stonebranch_variable](#stonebranch_variable) - Global variables
 - [stonebranch_business_service](#stonebranch_business_service) - Business service groups
+- [stonebranch_custom_day](#stonebranch_custom_day) - Calendar exception dates and holidays
 
 ### stonebranch_task_unix
 
@@ -553,6 +554,81 @@ Business services can be imported using the name:
 
 ```bash
 terraform import stonebranch_business_service.example "service-name"
+```
+
+### stonebranch_custom_day
+
+Manages calendar exception dates (single dates, date lists, or yearly repeating dates), optionally marked as holidays with weekend-observance rules.
+
+#### Example Usage
+
+```hcl
+# A single, specific exception date
+resource "stonebranch_custom_day" "maintenance_window" {
+  name  = "maintenance-window"
+  ctype = "Single Date"
+  date  = "2026-04-15"
+}
+
+# The same month+day every year, marked as a holiday with
+# weekend-observance rules
+resource "stonebranch_custom_day" "christmas" {
+  name    = "christmas"
+  ctype   = "Absolute Repeating Date"
+  month   = "Dec"
+  day     = 25
+  holiday = true
+
+  observed_rules = [
+    { actual_day_of_week = "Sat", observed_day_of_week = "Fri" },
+    { actual_day_of_week = "Sun", observed_day_of_week = "Mon" },
+  ]
+}
+
+# The nth weekday of a month, every year (e.g. 4th Thursday of November)
+resource "stonebranch_custom_day" "thanksgiving" {
+  name      = "thanksgiving"
+  ctype     = "Relative Repeating Date"
+  month     = "Nov"
+  dayofweek = "Thu"
+  relfreq   = "4th"
+  holiday   = true
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the custom day |
+| `ctype` | string | Yes | Definition style: `Single Date`, `List of Dates`, `Absolute Repeating Date`, or `Relative Repeating Date` |
+| `date` | string | No | Specific date (`yyyy-MM-dd`), used when `ctype` is `Single Date` |
+| `date_list` | list(string) | No | List of specific dates (`yyyy-MM-dd`), used when `ctype` is `List of Dates` |
+| `month` | string | No | Month (`Jan`-`Dec`), used when `ctype` is `Absolute Repeating Date` or `Relative Repeating Date` |
+| `day` | number | No | Day of month, used when `ctype` is `Absolute Repeating Date` |
+| `dayofweek` | string | No | Day of week (`Sun`-`Sat`), used when `ctype` is `Relative Repeating Date` |
+| `relfreq` | string | No | Relative frequency (`1st`, `2nd`, `3rd`, `4th`, `Last`, `Every`, `Nth`, `Last Day`, `Last Business Day`), used when `ctype` is `Relative Repeating Date` |
+| `nth_amount` / `nth_type` | number / string | No | Nth day-of-month value/type, used when `relfreq` is `Nth` |
+| `adjustment` / `adjustment_amount` / `adjustment_type` | string / number / string | No | Offset applied to the resolved date (`None`, `Less`, `Plus`) |
+| `holiday` | bool | No | Marks this custom day as a holiday, enabling `observed_rules` |
+| `period` | bool | No | Marks this custom day as a period (not allowed when `ctype` is `Single Date`) |
+| `observed_rules` | list(object) | No | Weekend-observance rules (`actual_day_of_week` / `observed_day_of_week`), used when `holiday` is `true` |
+| `comments` | string | No | Description of the custom day |
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+| `category` | Server-computed classification: `Day`, `Holiday`, or `Period`, derived from `holiday`/`period` |
+
+#### Import
+
+Custom days can be imported using the name:
+
+```bash
+terraform import stonebranch_custom_day.example "custom-day-name"
 ```
 
 ## Development
