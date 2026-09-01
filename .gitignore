@@ -22,6 +22,7 @@ dist/
 coverage.out
 
 .env
+.envrc
 resources.test
 tmp/
 
