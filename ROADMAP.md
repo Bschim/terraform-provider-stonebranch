@@ -37,6 +37,7 @@ This document outlines the development roadmap for the Stonebranch Universal Con
 | `stonebranch_email_template` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_custom_day` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_virtual_resource` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_universal_template` | ✅ Complete (`commands`/`events` deferred) | ✅ | ✅ |
 
 ### Implemented Data Sources
 
@@ -248,7 +249,7 @@ Resources for enterprise system integrations.
 
 | Resource | Description | Priority | Status |
 |----------|-------------|----------|--------|
-| `stonebranch_universal_template` | Custom task templates | P2 | 🔲 Not Started |
+| `stonebranch_universal_template` | Custom task templates | P2 | ✅ Complete (`fields` supported; `commands`/`events` deferred) |
 | `stonebranch_task_universal` | Universal template tasks | P2 | 🔲 Not Started |
 
 ### Monitoring
@@ -429,6 +430,7 @@ Test helpers: `internal/acctest/acctest.go`
 | `stonebranch_tasks` (data source) | ✅ Acceptance tests |
 | `stonebranch_task_instances` (data source) | ✅ Acceptance tests |
 | `stonebranch_calendar` | ✅ Acceptance tests |
+| `stonebranch_universal_template` | ✅ Acceptance tests |
 
 ---
 
