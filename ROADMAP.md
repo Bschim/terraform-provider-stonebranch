@@ -34,6 +34,9 @@ This document outlines the development roadmap for the Stonebranch Universal Con
 | `stonebranch_task_monitor` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_stored_procedure` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_web_service` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_email_template` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_custom_day` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_virtual_resource` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_universal_template` | ✅ Complete (`commands`/`events` deferred) | ✅ | ✅ |
 
 ### Implemented Data Sources
@@ -120,14 +123,14 @@ Resources for building complex workflows and orchestration patterns.
 |----------|-------------|----------|--------|
 | `stonebranch_task_manual` | Manual intervention tasks | P1 | 🔲 Not Started |
 | `stonebranch_task_approval` | Approval workflow tasks | P2 | 🔲 Not Started |
-| `stonebranch_virtual_resource` | Concurrency control | P1 | 🔲 Not Started |
+| `stonebranch_virtual_resource` | Concurrency control | P1 | ✅ Complete |
 
 ### Deliverables
 - [x] `stonebranch_task_workflow` resource
 - [x] `stonebranch_workflow_vertex` resource for adding tasks to workflows
 - [x] `stonebranch_workflow_edge` resource for task dependencies
 - [ ] All trigger type resources
-- [ ] `stonebranch_virtual_resource` for concurrency control
+- [x] `stonebranch_virtual_resource` for concurrency control
 - [x] Workflow composition examples
 - [x] Acceptance tests for workflow resources
 
@@ -142,11 +145,11 @@ Resources for advanced scheduling with business calendars.
 | Resource | Description | Priority | Status |
 |----------|-------------|----------|--------|
 | `stonebranch_calendar` | Business calendars | P0 | ✅ Complete |
-| `stonebranch_custom_day` | Holiday/special day definitions | P1 | 🔲 Not Started |
+| `stonebranch_custom_day` | Holiday/special day definitions | P1 | ✅ Complete |
 
 ### Deliverables
 - [x] `stonebranch_calendar` resource with full CRUD
-- [ ] `stonebranch_custom_day` resource with full CRUD
+- [x] `stonebranch_custom_day` resource with full CRUD
 - [x] Calendar integration with triggers
 - [x] Acceptance tests for calendar resource
 
@@ -191,11 +194,11 @@ Resources for organizing and categorizing other resources.
 
 | Resource | Description | Priority | Status |
 |----------|-------------|----------|--------|
-| `stonebranch_email_template` | Reusable email templates | P1 | 🔲 Not Started |
+| `stonebranch_email_template` | Reusable email templates | P1 | ✅ Complete |
 
 ### Deliverables
 - [x] `stonebranch_business_service` resource with full CRUD
-- [ ] `stonebranch_email_template` resource with full CRUD
+- [x] `stonebranch_email_template` resource with full CRUD
 - [x] Acceptance tests for business service resource
 
 ---
@@ -414,6 +417,7 @@ Test helpers: `internal/acctest/acctest.go`
 | `stonebranch_task_email` | ✅ Acceptance tests |
 | `stonebranch_trigger_cron` | ✅ Acceptance tests |
 | `stonebranch_business_service` | ✅ Acceptance tests |
+| `stonebranch_email_template` | ✅ Acceptance tests |
 | `stonebranch_agent_cluster` | ✅ Acceptance tests |
 | `stonebranch_trigger_task_monitor` | ✅ Acceptance tests |
 | `stonebranch_task_monitor` | ✅ Acceptance tests |
@@ -576,11 +580,11 @@ docs/
 - [x] Workflow edge resource
 - [x] Cron trigger resource
 - [ ] Additional trigger types (file monitor, task monitor, etc.)
-- [ ] Virtual resources
+- [x] Virtual resources
 
 ### v0.4.0 - Scheduling
 - [x] Calendar resource
-- [ ] Custom day resource
+- [x] Custom day resource
 - [x] Cron trigger
 
 ### v0.5.0 - Infrastructure

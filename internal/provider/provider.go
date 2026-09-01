@@ -142,9 +142,11 @@ func (p *StonebranchProvider) Resources(ctx context.Context) []func() resource.R
 		resources.NewWorkflowVertexResource,
 		resources.NewWorkflowEdgeResource,
 		resources.NewBusinessServiceResource,
+		resources.NewEmailTemplateResource,
 		resources.NewTriggerFileMonitorResource,
 		resources.NewTaskFileMonitorResource,
 		resources.NewCalendarResource,
+		resources.NewCustomDayResource,
 		resources.NewAgentClusterResource,
 		resources.NewTriggerTaskMonitorResource,
 		resources.NewTaskMonitorResource,
@@ -153,6 +155,7 @@ func (p *StonebranchProvider) Resources(ctx context.Context) []func() resource.R
 		resources.NewTaskTimerResource,
 		resources.NewTaskUniversalAwsS3Resource,
 		resources.NewUniversalTemplateResource,
+		resources.NewVirtualResourceResource,
 	}
 }
 

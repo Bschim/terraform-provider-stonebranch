@@ -302,6 +302,9 @@ You can provide the token via:
 - [stonebranch_credential](#stonebranch_credential) - Authentication credentials
 - [stonebranch_variable](#stonebranch_variable) - Global variables
 - [stonebranch_business_service](#stonebranch_business_service) - Business service groups
+- [stonebranch_email_template](#stonebranch_email_template) - Reusable email notification templates
+- [stonebranch_custom_day](#stonebranch_custom_day) - Calendar exception dates and holidays
+- [stonebranch_virtual_resource](#stonebranch_virtual_resource) - Concurrency control resources
 - [stonebranch_universal_template](#stonebranch_universal_template) - Custom script-based task templates
 
 ### stonebranch_task_unix
@@ -665,6 +668,175 @@ Universal templates can be imported using the name:
 
 ```bash
 terraform import stonebranch_universal_template.example "template-name"
+```
+
+### stonebranch_email_template
+
+Manages reusable email notification templates. Templates define subject/body content and recipients, and reference a `stonebranch_email_connection` used to send the email.
+
+#### Example Usage
+
+```hcl
+resource "stonebranch_email_connection" "notifications" {
+  name          = "notifications"
+  smtp          = "smtp.example.com"
+  smtp_port     = 25
+  email_address = "notifications@example.com"
+}
+
+# At least one of "to", "cc", or "bcc" must be set.
+resource "stonebranch_email_template" "job_failure" {
+  name             = "job-failure"
+  email_connection = stonebranch_email_connection.notifications.name
+  to               = "oncall@example.com"
+  subject          = "Job Failed"
+  body             = "A scheduled job has failed. Please check the Universal Controller for details."
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the email template |
+| `email_connection` | string | Yes | Name of the `stonebranch_email_connection` used to send emails from this template |
+| `to` / `cc` / `bcc` | string | No* | Comma-separated recipient lists |
+| `subject` | string | No | Subject line of the email |
+| `body` | string | No | Body content of the email |
+| `reply_to` | string | No | Reply-To address |
+| `description` | string | No | Description of the email template |
+| `opswise_groups` | list | No | Business service names |
+
+*At least one of `to`, `cc`, or `bcc` must be set; validated at plan time.
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Email templates can be imported using the name:
+
+```bash
+terraform import stonebranch_email_template.example "template-name"
+```
+
+### stonebranch_custom_day
+
+Manages calendar exception dates (single dates, date lists, or yearly repeating dates), optionally marked as holidays with weekend-observance rules.
+
+#### Example Usage
+
+```hcl
+# A single, specific exception date
+resource "stonebranch_custom_day" "maintenance_window" {
+  name  = "maintenance-window"
+  ctype = "Single Date"
+  date  = "2026-04-15"
+}
+
+# The same month+day every year, marked as a holiday with
+# weekend-observance rules
+resource "stonebranch_custom_day" "christmas" {
+  name    = "christmas"
+  ctype   = "Absolute Repeating Date"
+  month   = "Dec"
+  day     = 25
+  holiday = true
+
+  observed_rules = [
+    { actual_day_of_week = "Sat", observed_day_of_week = "Fri" },
+    { actual_day_of_week = "Sun", observed_day_of_week = "Mon" },
+  ]
+}
+
+# The nth weekday of a month, every year (e.g. 4th Thursday of November)
+resource "stonebranch_custom_day" "thanksgiving" {
+  name      = "thanksgiving"
+  ctype     = "Relative Repeating Date"
+  month     = "Nov"
+  dayofweek = "Thu"
+  relfreq   = "4th"
+  holiday   = true
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the custom day |
+| `ctype` | string | Yes | Definition style: `Single Date`, `List of Dates`, `Absolute Repeating Date`, or `Relative Repeating Date` |
+| `date` | string | No | Specific date (`yyyy-MM-dd`), used when `ctype` is `Single Date` |
+| `date_list` | list(string) | No | List of specific dates (`yyyy-MM-dd`), used when `ctype` is `List of Dates` |
+| `month` | string | No | Month (`Jan`-`Dec`), used when `ctype` is `Absolute Repeating Date` or `Relative Repeating Date` |
+| `day` | number | No | Day of month, used when `ctype` is `Absolute Repeating Date` |
+| `dayofweek` | string | No | Day of week (`Sun`-`Sat`), used when `ctype` is `Relative Repeating Date` |
+| `relfreq` | string | No | Relative frequency (`1st`, `2nd`, `3rd`, `4th`, `Last`, `Every`, `Nth`, `Last Day`, `Last Business Day`), used when `ctype` is `Relative Repeating Date` |
+| `nth_amount` / `nth_type` | number / string | No | Nth day-of-month value/type, used when `relfreq` is `Nth` |
+| `adjustment` / `adjustment_amount` / `adjustment_type` | string / number / string | No | Offset applied to the resolved date (`None`, `Less`, `Plus`) |
+| `holiday` | bool | No | Marks this custom day as a holiday, enabling `observed_rules` |
+| `period` | bool | No | Marks this custom day as a period (not allowed when `ctype` is `Single Date`) |
+| `observed_rules` | list(object) | No | Weekend-observance rules (`actual_day_of_week` / `observed_day_of_week`), used when `holiday` is `true` |
+| `comments` | string | No | Description of the custom day |
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+| `category` | Server-computed classification: `Day`, `Holiday`, or `Period`, derived from `holiday`/`period` |
+
+#### Import
+
+Custom days can be imported using the name:
+
+```bash
+terraform import stonebranch_custom_day.example "custom-day-name"
+```
+
+### stonebranch_virtual_resource
+
+Manages a StoneBranch Virtual Resource for concurrency control. Note: the underlying UAC API endpoint for this resource is `/resources/virtual`, not `/resources/virtualresource`.
+
+#### Example Usage
+
+```hcl
+resource "stonebranch_virtual_resource" "db_connections" {
+  name    = "db-connections"
+  type    = "Renewable"
+  limit   = 5
+  summary = "Limits concurrent tasks connecting to the shared database"
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the virtual resource |
+| `type` | string | No | Type of virtual resource: `Renewable`, `Boundary`, or `Depletable` |
+| `limit` | number | No | Maximum concurrent usage allowed |
+| `summary` | string | No | Description of the virtual resource |
+| `opswise_groups` | list(string) | No | Business services this virtual resource belongs to |
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Virtual resources can be imported using the name:
+
+```bash
+terraform import stonebranch_virtual_resource.example "resource-name"
 ```
 
 ## Development
