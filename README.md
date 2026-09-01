@@ -302,6 +302,7 @@ You can provide the token via:
 - [stonebranch_credential](#stonebranch_credential) - Authentication credentials
 - [stonebranch_variable](#stonebranch_variable) - Global variables
 - [stonebranch_business_service](#stonebranch_business_service) - Business service groups
+- [stonebranch_email_template](#stonebranch_email_template) - Reusable email notification templates
 - [stonebranch_custom_day](#stonebranch_custom_day) - Calendar exception dates and holidays
 - [stonebranch_virtual_resource](#stonebranch_virtual_resource) - Concurrency control resources
 
@@ -555,6 +556,60 @@ Business services can be imported using the name:
 
 ```bash
 terraform import stonebranch_business_service.example "service-name"
+```
+
+### stonebranch_email_template
+
+Manages reusable email notification templates. Templates define subject/body content and recipients, and reference a `stonebranch_email_connection` used to send the email.
+
+#### Example Usage
+
+```hcl
+resource "stonebranch_email_connection" "notifications" {
+  name          = "notifications"
+  smtp          = "smtp.example.com"
+  smtp_port     = 25
+  email_address = "notifications@example.com"
+}
+
+# At least one of "to", "cc", or "bcc" must be set.
+resource "stonebranch_email_template" "job_failure" {
+  name             = "job-failure"
+  email_connection = stonebranch_email_connection.notifications.name
+  to               = "oncall@example.com"
+  subject          = "Job Failed"
+  body             = "A scheduled job has failed. Please check the Universal Controller for details."
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the email template |
+| `email_connection` | string | Yes | Name of the `stonebranch_email_connection` used to send emails from this template |
+| `to` / `cc` / `bcc` | string | No* | Comma-separated recipient lists |
+| `subject` | string | No | Subject line of the email |
+| `body` | string | No | Body content of the email |
+| `reply_to` | string | No | Reply-To address |
+| `description` | string | No | Description of the email template |
+| `opswise_groups` | list | No | Business service names |
+
+*At least one of `to`, `cc`, or `bcc` must be set; validated at plan time.
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Email templates can be imported using the name:
+
+```bash
+terraform import stonebranch_email_template.example "template-name"
 ```
 
 ### stonebranch_custom_day

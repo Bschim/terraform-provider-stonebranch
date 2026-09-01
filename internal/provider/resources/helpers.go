@@ -108,3 +108,8 @@ func StringValueOrDefault(s types.String, defaultValue string) string {
 	}
 	return s.ValueString()
 }
+
+// isSet reports whether a string attribute has a non-empty known value.
+func isSet(s types.String) bool {
+	return !s.IsNull() && !s.IsUnknown() && s.ValueString() != ""
+}
