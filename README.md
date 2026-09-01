@@ -284,6 +284,7 @@ You can provide the token via:
 - [stonebranch_task_sql](#stonebranch_task_sql) - SQL database tasks
 - [stonebranch_task_email](#stonebranch_task_email) - Email notification tasks
 - [stonebranch_task_workflow](#stonebranch_task_workflow) - Workflow orchestration tasks
+- [stonebranch_task_recurring](#stonebranch_task_recurring) - Recurring tasks that repeatedly launch a target task on an interval
 
 ### Workflows
 - [stonebranch_workflow_vertex](#stonebranch_workflow_vertex) - Tasks within workflows
@@ -444,6 +445,87 @@ Tasks can be imported using the task name:
 
 ```bash
 terraform import stonebranch_task_windows.example "task-name"
+```
+
+### stonebranch_task_recurring
+
+Manages a StoneBranch Task (Recurring task type). A recurring task repeatedly launches a target task/workflow on an interval, within an optional time window.
+
+#### Example Usage
+
+```hcl
+# Recurring task that launches a target task every 15 minutes,
+# restricted to a daily time window
+resource "stonebranch_task_recurring" "poll_every_15_minutes" {
+  name        = "poll-every-15-minutes"
+  summary     = "Launches the poll task every 15 minutes between 01:00 and 23:40"
+  target_task = stonebranch_task_unix.poll.name
+
+  recurrence_type          = "Interval"
+  recurrence_interval      = "15"
+  recurrence_interval_unit = "Minutes"
+
+  time_window            = true
+  interval_start_time    = "01:00"
+  interval_end_time      = "23:40"
+  indefinite_recurrences = false
+}
+
+# Recurring task that stops after a fixed number of recurrences
+resource "stonebranch_task_recurring" "poll_five_times" {
+  name        = "poll-five-times"
+  target_task = stonebranch_task_unix.poll.name
+
+  recurrence_type          = "Interval"
+  recurrence_interval      = "10"
+  recurrence_interval_unit = "Minutes"
+
+  indefinite_recurrences = false
+  number_of_recurrences  = "5"
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the task |
+| `target_task` | string | Yes | Name of the task or workflow to launch on each recurrence |
+| `summary` | string | No | Description of the task |
+| `target_task_monitor_condition` | string | No | `None`, `First Recurrence`, `Last Recurrence`, or `All Recurrences` |
+| `target_task_status_text` | string | No | Status text to display for the target task |
+| `recurrence_type` | string | No | `Interval` or `On` |
+| `recurrence_interval` | string | No | Interval amount between recurrences |
+| `recurrence_interval_unit` | string | No | `Seconds`, `Minutes`, `Hours`, or `Days` |
+| `time_window` | bool | No | Whether recurrences are restricted to `interval_start_time`/`interval_end_time` |
+| `interval_start_time` | string | No | Time of day (HH:MM) the interval window starts |
+| `interval_end_time` | string | No | Time of day (HH:MM) the interval window ends |
+| `interval_start_day_constraint` | string | No | `None` or `Same Day` |
+| `interval_end_day_constraint` | string | No | `None` or `Same Day` |
+| `indefinite_recurrences` | bool | No | Whether the task recurs indefinitely |
+| `number_of_recurrences` | string | No* | Number of times to recur before stopping |
+| `skip_condition` | string | No | `None`, `Active`, or `Active By Recurring Task Instance` |
+| `retention_duration_rt` | int | No | How long to retain completed recurrence instances |
+| `retention_duration_unit_rt` | string | No | Unit for `retention_duration_rt` (e.g. `Days`) |
+| `retention_duration_purge_rt` | bool | No | Whether to purge retained recurrence instances after `retention_duration_rt` elapses |
+| `rd_exclude_backup_rt` | bool | No | Whether to exclude retained recurrence instances from backup |
+| `opswise_groups` | list | No | Business service names |
+
+*`time_window` and `indefinite_recurrences` cannot both be `true`. `number_of_recurrences` must not be set when `time_window` is `true`, and is required when both `time_window` and `indefinite_recurrences` are `false`.
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Tasks can be imported using the task name:
+
+```bash
+terraform import stonebranch_task_recurring.example "task-name"
 ```
 
 ### stonebranch_script
