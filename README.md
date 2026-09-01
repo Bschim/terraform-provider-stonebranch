@@ -302,6 +302,7 @@ You can provide the token via:
 - [stonebranch_credential](#stonebranch_credential) - Authentication credentials
 - [stonebranch_variable](#stonebranch_variable) - Global variables
 - [stonebranch_business_service](#stonebranch_business_service) - Business service groups
+- [stonebranch_universal_template](#stonebranch_universal_template) - Custom script-based task templates
 
 ### stonebranch_task_unix
 
@@ -553,6 +554,117 @@ Business services can be imported using the name:
 
 ```bash
 terraform import stonebranch_business_service.example "service-name"
+```
+
+### stonebranch_universal_template
+
+Manages a StoneBranch Universal Template. Universal templates define reusable, script-based custom task types that run via a Universal Agent plugin.
+
+> **Known limitation (v1):** this resource models a curated core field set plus the custom UI form-builder (`fields`). The `commands`/`events` (event-metric) definitions and the top-level per-attribute UI restriction (`*FieldsRestriction`) settings are not yet supported and must be managed outside Terraform (e.g. via the UAC UI).
+>
+> **Known API limitation:** once a template has `fields`, the server rejects updates that would reduce the list to empty (`fields = []` or omitting the attribute) — you can only ever replace fields with a different non-empty set.
+
+#### Example Usage
+
+```hcl
+# Cross-platform ("Any" agent type) template using a single common script.
+resource "stonebranch_universal_template" "health_check" {
+  name              = "tf-example-health-check"
+  description       = "Runs a health check script on any agent platform"
+  variable_prefix   = "HC"
+  agent_type        = "Any"
+  use_common_script = true
+  script            = "curl -sf $HC_URL || exit 1"
+  exit_codes        = "0"
+
+  environment = [
+    { name = "HC_URL", value = "https://example.com/health" },
+  ]
+}
+
+# Windows-specific template with platform script and elevated privileges.
+resource "stonebranch_universal_template" "windows_cleanup" {
+  name            = "tf-example-windows-cleanup"
+  description     = "Cleans up temp files on a Windows agent"
+  variable_prefix = "WC"
+  agent_type      = "Windows"
+  script_windows  = "Remove-Item -Path $env:TEMP\\* -Recurse -Force"
+  exit_codes      = "0"
+  elevate_user    = true
+}
+
+# Template exposing a custom UI form ("fields") so operators can fill in
+# task-specific values when launching a task built from this template.
+resource "stonebranch_universal_template" "aws_deploy" {
+  name              = "tf-example-aws-deploy"
+  description       = "Deploys to AWS with operator-supplied region and tags"
+  variable_prefix   = "AWS"
+  agent_type        = "Any"
+  use_common_script = true
+  script            = "echo Deploying to $AWS_region with tags $AWS_tags"
+  exit_codes        = "0"
+
+  fields = [
+    {
+      name          = "region"
+      label         = "Region"
+      field_mapping = "Choice Field 1"
+      field_type    = "Choice"
+      choices = [
+        { field_value = "us-east-1", field_value_label = "US East 1" },
+        { field_value = "us-west-2", field_value_label = "US West 2" },
+      ]
+    },
+    {
+      name              = "tags"
+      label             = "Tags"
+      field_mapping     = "Array Field 1"
+      field_type        = "Array"
+      array_name_title  = "Key"
+      array_value_title = "Value"
+      array_field_value = [
+        { name = "env", value = "prod" },
+      ]
+    },
+  ]
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the universal template |
+| `variable_prefix` | string | Yes | Prefix used for variables exposed by this template |
+| `agent_type` | string | Yes | Agent platform this template targets. Confirmed values: `Windows`, `Any` |
+| `exit_codes` | string | Yes | Exit codes that indicate success (e.g. `0` or `0,1,2`); no server default |
+| `description` | string | No | Description of the universal template |
+| `use_common_script` / `script` | bool / string | No | Single script shared across all agent types |
+| `script_unix` / `script_windows` | string | No | Platform-specific script content |
+| `script_type_windows` | string | No | Script type/interpreter for the Windows script |
+| `agent` / `agent_var` / `agent_cluster` / `agent_cluster_var` | string | No | Agent targeting for tasks based on this template |
+| `broadcast_cluster` / `broadcast_cluster_var` | string | No | Broadcast cluster targeting |
+| `credentials` / `credentials_var` | string | No | Credentials used for task execution |
+| `environment` | list of objects | No | `name`/`value` environment variable pairs. Full-replace on update — omitting this attribute clears any previously-set values |
+| `exit_code_processing` | string | No | Confirmed values: `Success Exitcode Range`, `Failure Exitcode Range`. Default: `Success Exitcode Range` |
+| `elevate_user` / `desktop_interact` / `create_console` | bool | No | Windows-only execution options |
+| `template_type` | string | No | Confirmed value: `Script` |
+| `fields` | list of objects | No | Custom UI form fields; each maps to a typed extension slot via `field_mapping`. Full-replace on update, but the server rejects reducing the list to empty (see known API limitation above) |
+
+See `docs/resources/universal_template.md` for the full attribute reference.
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+
+#### Import
+
+Universal templates can be imported using the name:
+
+```bash
+terraform import stonebranch_universal_template.example "template-name"
 ```
 
 ## Development

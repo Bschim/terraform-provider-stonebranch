@@ -34,6 +34,7 @@ This document outlines the development roadmap for the Stonebranch Universal Con
 | `stonebranch_task_monitor` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_stored_procedure` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_web_service` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_universal_template` | ✅ Complete (`commands`/`events` deferred) | ✅ | ✅ |
 
 ### Implemented Data Sources
 
@@ -245,7 +246,7 @@ Resources for enterprise system integrations.
 
 | Resource | Description | Priority | Status |
 |----------|-------------|----------|--------|
-| `stonebranch_universal_template` | Custom task templates | P2 | 🔲 Not Started |
+| `stonebranch_universal_template` | Custom task templates | P2 | ✅ Complete (`fields` supported; `commands`/`events` deferred) |
 | `stonebranch_task_universal` | Universal template tasks | P2 | 🔲 Not Started |
 
 ### Monitoring
@@ -425,6 +426,7 @@ Test helpers: `internal/acctest/acctest.go`
 | `stonebranch_tasks` (data source) | ✅ Acceptance tests |
 | `stonebranch_task_instances` (data source) | ✅ Acceptance tests |
 | `stonebranch_calendar` | ✅ Acceptance tests |
+| `stonebranch_universal_template` | ✅ Acceptance tests |
 
 ---
 
@@ -498,9 +500,9 @@ docs/
 | Task Types | 20 | 9 |
 | Trigger Types | 12 | 4 |
 | Connection Types | 5 | 2 |
-| Supporting Resources | 15 | 9 |
+| Supporting Resources | 15 | 10 |
 | Data Sources | 13 | 6 |
-| **Total** | **65** | **30** |
+| **Total** | **65** | **31** |
 
 ### Priority Breakdown
 
