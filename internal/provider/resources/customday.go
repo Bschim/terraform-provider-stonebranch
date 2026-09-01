@@ -452,10 +452,6 @@ func (r *CustomDayResource) ValidateConfig(ctx context.Context, req resource.Val
 	}
 }
 
-func isSet(s types.String) bool {
-	return !s.IsNull() && !s.IsUnknown() && s.ValueString() != ""
-}
-
 func contains(list []string, val string) bool {
 	for _, v := range list {
 		if v == val {
