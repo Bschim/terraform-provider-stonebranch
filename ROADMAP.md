@@ -34,6 +34,7 @@ This document outlines the development roadmap for the Stonebranch Universal Con
 | `stonebranch_task_monitor` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_stored_procedure` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_web_service` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_task_recurring` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_email_template` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_custom_day` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_virtual_resource` | ✅ Complete | ✅ | ✅ |
@@ -264,7 +265,7 @@ Resources for enterprise system integrations.
 | Resource | Description | Priority | Status |
 |----------|-------------|----------|--------|
 | `stonebranch_task_sleep` | Delay/wait tasks | P2 | 🔲 Not Started |
-| `stonebranch_task_recurring` | Recurring tasks | P2 | 🔲 Not Started |
+| `stonebranch_task_recurring` | Recurring tasks | P2 | ✅ Complete |
 | `stonebranch_task_ucmd` | Universal command tasks | P2 | 🔲 Not Started |
 | `stonebranch_task_application_control` | Application control | P3 | 🔲 Not Started |
 | `stonebranch_task_critical_endpoint` | Critical path tasks | P3 | 🔲 Not Started |
@@ -501,12 +502,12 @@ docs/
 
 | Category | Count | Implemented |
 |----------|-------|-------------|
-| Task Types | 20 | 9 |
+| Task Types | 20 | 10 |
 | Trigger Types | 12 | 4 |
 | Connection Types | 5 | 2 |
 | Supporting Resources | 15 | 10 |
 | Data Sources | 13 | 6 |
-| **Total** | **65** | **31** |
+| **Total** | **65** | **32** |
 
 ### Priority Breakdown
 
