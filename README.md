@@ -303,6 +303,10 @@ You can provide the token via:
 - [stonebranch_credential](#stonebranch_credential) - Authentication credentials
 - [stonebranch_variable](#stonebranch_variable) - Global variables
 - [stonebranch_business_service](#stonebranch_business_service) - Business service groups
+- [stonebranch_email_template](#stonebranch_email_template) - Reusable email notification templates
+- [stonebranch_custom_day](#stonebranch_custom_day) - Calendar exception dates and holidays
+- [stonebranch_virtual_resource](#stonebranch_virtual_resource) - Concurrency control resources
+- [stonebranch_universal_template](#stonebranch_universal_template) - Custom script-based task templates
 
 ### stonebranch_task_unix
 
@@ -635,6 +639,286 @@ Business services can be imported using the name:
 
 ```bash
 terraform import stonebranch_business_service.example "service-name"
+```
+
+### stonebranch_universal_template
+
+Manages a StoneBranch Universal Template. Universal templates define reusable, script-based custom task types that run via a Universal Agent plugin.
+
+> **Known limitation (v1):** this resource models a curated core field set plus the custom UI form-builder (`fields`). The `commands`/`events` (event-metric) definitions and the top-level per-attribute UI restriction (`*FieldsRestriction`) settings are not yet supported and must be managed outside Terraform (e.g. via the UAC UI).
+>
+> **Known API limitation:** once a template has `fields`, the server rejects updates that would reduce the list to empty (`fields = []` or omitting the attribute) — you can only ever replace fields with a different non-empty set.
+
+#### Example Usage
+
+```hcl
+# Cross-platform ("Any" agent type) template using a single common script.
+resource "stonebranch_universal_template" "health_check" {
+  name              = "tf-example-health-check"
+  description       = "Runs a health check script on any agent platform"
+  variable_prefix   = "HC"
+  agent_type        = "Any"
+  use_common_script = true
+  script            = "curl -sf $HC_URL || exit 1"
+  exit_codes        = "0"
+
+  environment = [
+    { name = "HC_URL", value = "https://example.com/health" },
+  ]
+}
+
+# Windows-specific template with platform script and elevated privileges.
+resource "stonebranch_universal_template" "windows_cleanup" {
+  name            = "tf-example-windows-cleanup"
+  description     = "Cleans up temp files on a Windows agent"
+  variable_prefix = "WC"
+  agent_type      = "Windows"
+  script_windows  = "Remove-Item -Path $env:TEMP\\* -Recurse -Force"
+  exit_codes      = "0"
+  elevate_user    = true
+}
+
+# Template exposing a custom UI form ("fields") so operators can fill in
+# task-specific values when launching a task built from this template.
+resource "stonebranch_universal_template" "aws_deploy" {
+  name              = "tf-example-aws-deploy"
+  description       = "Deploys to AWS with operator-supplied region and tags"
+  variable_prefix   = "AWS"
+  agent_type        = "Any"
+  use_common_script = true
+  script            = "echo Deploying to $AWS_region with tags $AWS_tags"
+  exit_codes        = "0"
+
+  fields = [
+    {
+      name          = "region"
+      label         = "Region"
+      field_mapping = "Choice Field 1"
+      field_type    = "Choice"
+      choices = [
+        { field_value = "us-east-1", field_value_label = "US East 1" },
+        { field_value = "us-west-2", field_value_label = "US West 2" },
+      ]
+    },
+    {
+      name              = "tags"
+      label             = "Tags"
+      field_mapping     = "Array Field 1"
+      field_type        = "Array"
+      array_name_title  = "Key"
+      array_value_title = "Value"
+      array_field_value = [
+        { name = "env", value = "prod" },
+      ]
+    },
+  ]
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the universal template |
+| `variable_prefix` | string | Yes | Prefix used for variables exposed by this template |
+| `agent_type` | string | Yes | Agent platform this template targets. Confirmed values: `Windows`, `Any` |
+| `exit_codes` | string | Yes | Exit codes that indicate success (e.g. `0` or `0,1,2`); no server default |
+| `description` | string | No | Description of the universal template |
+| `use_common_script` / `script` | bool / string | No | Single script shared across all agent types |
+| `script_unix` / `script_windows` | string | No | Platform-specific script content |
+| `script_type_windows` | string | No | Script type/interpreter for the Windows script |
+| `agent` / `agent_var` / `agent_cluster` / `agent_cluster_var` | string | No | Agent targeting for tasks based on this template |
+| `broadcast_cluster` / `broadcast_cluster_var` | string | No | Broadcast cluster targeting |
+| `credentials` / `credentials_var` | string | No | Credentials used for task execution |
+| `environment` | list of objects | No | `name`/`value` environment variable pairs. Full-replace on update — omitting this attribute clears any previously-set values |
+| `exit_code_processing` | string | No | Confirmed values: `Success Exitcode Range`, `Failure Exitcode Range`. Default: `Success Exitcode Range` |
+| `elevate_user` / `desktop_interact` / `create_console` | bool | No | Windows-only execution options |
+| `template_type` | string | No | Confirmed value: `Script` |
+| `fields` | list of objects | No | Custom UI form fields; each maps to a typed extension slot via `field_mapping`. Full-replace on update, but the server rejects reducing the list to empty (see known API limitation above) |
+
+See `docs/resources/universal_template.md` for the full attribute reference.
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+
+#### Import
+
+Universal templates can be imported using the name:
+
+```bash
+terraform import stonebranch_universal_template.example "template-name"
+```
+
+### stonebranch_email_template
+
+Manages reusable email notification templates. Templates define subject/body content and recipients, and reference a `stonebranch_email_connection` used to send the email.
+
+#### Example Usage
+
+```hcl
+resource "stonebranch_email_connection" "notifications" {
+  name          = "notifications"
+  smtp          = "smtp.example.com"
+  smtp_port     = 25
+  email_address = "notifications@example.com"
+}
+
+# At least one of "to", "cc", or "bcc" must be set.
+resource "stonebranch_email_template" "job_failure" {
+  name             = "job-failure"
+  email_connection = stonebranch_email_connection.notifications.name
+  to               = "oncall@example.com"
+  subject          = "Job Failed"
+  body             = "A scheduled job has failed. Please check the Universal Controller for details."
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the email template |
+| `email_connection` | string | Yes | Name of the `stonebranch_email_connection` used to send emails from this template |
+| `to` / `cc` / `bcc` | string | No* | Comma-separated recipient lists |
+| `subject` | string | No | Subject line of the email |
+| `body` | string | No | Body content of the email |
+| `reply_to` | string | No | Reply-To address |
+| `description` | string | No | Description of the email template |
+| `opswise_groups` | list | No | Business service names |
+
+*At least one of `to`, `cc`, or `bcc` must be set; validated at plan time.
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Email templates can be imported using the name:
+
+```bash
+terraform import stonebranch_email_template.example "template-name"
+```
+
+### stonebranch_custom_day
+
+Manages calendar exception dates (single dates, date lists, or yearly repeating dates), optionally marked as holidays with weekend-observance rules.
+
+#### Example Usage
+
+```hcl
+# A single, specific exception date
+resource "stonebranch_custom_day" "maintenance_window" {
+  name  = "maintenance-window"
+  ctype = "Single Date"
+  date  = "2026-04-15"
+}
+
+# The same month+day every year, marked as a holiday with
+# weekend-observance rules
+resource "stonebranch_custom_day" "christmas" {
+  name    = "christmas"
+  ctype   = "Absolute Repeating Date"
+  month   = "Dec"
+  day     = 25
+  holiday = true
+
+  observed_rules = [
+    { actual_day_of_week = "Sat", observed_day_of_week = "Fri" },
+    { actual_day_of_week = "Sun", observed_day_of_week = "Mon" },
+  ]
+}
+
+# The nth weekday of a month, every year (e.g. 4th Thursday of November)
+resource "stonebranch_custom_day" "thanksgiving" {
+  name      = "thanksgiving"
+  ctype     = "Relative Repeating Date"
+  month     = "Nov"
+  dayofweek = "Thu"
+  relfreq   = "4th"
+  holiday   = true
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the custom day |
+| `ctype` | string | Yes | Definition style: `Single Date`, `List of Dates`, `Absolute Repeating Date`, or `Relative Repeating Date` |
+| `date` | string | No | Specific date (`yyyy-MM-dd`), used when `ctype` is `Single Date` |
+| `date_list` | list(string) | No | List of specific dates (`yyyy-MM-dd`), used when `ctype` is `List of Dates` |
+| `month` | string | No | Month (`Jan`-`Dec`), used when `ctype` is `Absolute Repeating Date` or `Relative Repeating Date` |
+| `day` | number | No | Day of month, used when `ctype` is `Absolute Repeating Date` |
+| `dayofweek` | string | No | Day of week (`Sun`-`Sat`), used when `ctype` is `Relative Repeating Date` |
+| `relfreq` | string | No | Relative frequency (`1st`, `2nd`, `3rd`, `4th`, `Last`, `Every`, `Nth`, `Last Day`, `Last Business Day`), used when `ctype` is `Relative Repeating Date` |
+| `nth_amount` / `nth_type` | number / string | No | Nth day-of-month value/type, used when `relfreq` is `Nth` |
+| `adjustment` / `adjustment_amount` / `adjustment_type` | string / number / string | No | Offset applied to the resolved date (`None`, `Less`, `Plus`) |
+| `holiday` | bool | No | Marks this custom day as a holiday, enabling `observed_rules` |
+| `period` | bool | No | Marks this custom day as a period (not allowed when `ctype` is `Single Date`) |
+| `observed_rules` | list(object) | No | Weekend-observance rules (`actual_day_of_week` / `observed_day_of_week`), used when `holiday` is `true` |
+| `comments` | string | No | Description of the custom day |
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+| `category` | Server-computed classification: `Day`, `Holiday`, or `Period`, derived from `holiday`/`period` |
+
+#### Import
+
+Custom days can be imported using the name:
+
+```bash
+terraform import stonebranch_custom_day.example "custom-day-name"
+```
+
+### stonebranch_virtual_resource
+
+Manages a StoneBranch Virtual Resource for concurrency control. Note: the underlying UAC API endpoint for this resource is `/resources/virtual`, not `/resources/virtualresource`.
+
+#### Example Usage
+
+```hcl
+resource "stonebranch_virtual_resource" "db_connections" {
+  name    = "db-connections"
+  type    = "Renewable"
+  limit   = 5
+  summary = "Limits concurrent tasks connecting to the shared database"
+}
+```
+
+#### Argument Reference
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Unique name of the virtual resource |
+| `type` | string | No | Type of virtual resource: `Renewable`, `Boundary`, or `Depletable` |
+| `limit` | number | No | Maximum concurrent usage allowed |
+| `summary` | string | No | Description of the virtual resource |
+| `opswise_groups` | list(string) | No | Business services this virtual resource belongs to |
+
+#### Attribute Reference
+
+| Attribute | Description |
+|-----------|-------------|
+| `sys_id` | System ID assigned by StoneBranch |
+| `version` | Version number for optimistic locking |
+
+#### Import
+
+Virtual resources can be imported using the name:
+
+```bash
+terraform import stonebranch_virtual_resource.example "resource-name"
 ```
 
 ## Development
