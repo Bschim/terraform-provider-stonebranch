@@ -35,6 +35,7 @@ This document outlines the development roadmap for the Stonebranch Universal Con
 | `stonebranch_task_stored_procedure` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_task_web_service` | ✅ Complete | ✅ | ✅ |
 | `stonebranch_custom_day` | ✅ Complete | ✅ | ✅ |
+| `stonebranch_virtual_resource` | ✅ Complete | ✅ | ✅ |
 
 ### Implemented Data Sources
 
@@ -120,14 +121,14 @@ Resources for building complex workflows and orchestration patterns.
 |----------|-------------|----------|--------|
 | `stonebranch_task_manual` | Manual intervention tasks | P1 | 🔲 Not Started |
 | `stonebranch_task_approval` | Approval workflow tasks | P2 | 🔲 Not Started |
-| `stonebranch_virtual_resource` | Concurrency control | P1 | 🔲 Not Started |
+| `stonebranch_virtual_resource` | Concurrency control | P1 | ✅ Complete |
 
 ### Deliverables
 - [x] `stonebranch_task_workflow` resource
 - [x] `stonebranch_workflow_vertex` resource for adding tasks to workflows
 - [x] `stonebranch_workflow_edge` resource for task dependencies
 - [ ] All trigger type resources
-- [ ] `stonebranch_virtual_resource` for concurrency control
+- [x] `stonebranch_virtual_resource` for concurrency control
 - [x] Workflow composition examples
 - [x] Acceptance tests for workflow resources
 
@@ -575,7 +576,7 @@ docs/
 - [x] Workflow edge resource
 - [x] Cron trigger resource
 - [ ] Additional trigger types (file monitor, task monitor, etc.)
-- [ ] Virtual resources
+- [x] Virtual resources
 
 ### v0.4.0 - Scheduling
 - [x] Calendar resource

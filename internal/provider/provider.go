@@ -153,6 +153,7 @@ func (p *StonebranchProvider) Resources(ctx context.Context) []func() resource.R
 		resources.NewTaskWebServiceResource,
 		resources.NewTaskTimerResource,
 		resources.NewTaskUniversalAwsS3Resource,
+		resources.NewVirtualResourceResource,
 	}
 }
 
