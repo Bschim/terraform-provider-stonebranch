@@ -89,6 +89,26 @@ func TestAccCalendarResource_withQuarters(t *testing.T) {
 	})
 }
 
+func TestAccCalendarResource_withCustomDays(t *testing.T) {
+	rName := "tf-test-calendar-" + acctest.RandString(8)
+	resourceName := "stonebranch_calendar.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCalendarConfig_withCustomDays(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "custom_days.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "custom_days.0", rName+"-cd"),
+				),
+			},
+		},
+	})
+}
+
 // Test configuration helpers
 
 func testAccCalendarConfig_basic(name string) string {
@@ -154,6 +174,29 @@ resource "stonebranch_calendar" "test" {
   third_quarter_day    = "1"
   fourth_quarter_month = "Oct"
   fourth_quarter_day   = "1"
+}
+`, name)
+}
+
+func testAccCalendarConfig_withCustomDays(name string) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_custom_day" "test" {
+  name  = "%[1]s-cd"
+  ctype = "Single Date"
+  date  = "2027-01-01"
+}
+
+resource "stonebranch_calendar" "test" {
+  name                 = %[1]q
+  first_quarter_month  = "Jan"
+  first_quarter_day    = "1"
+  second_quarter_month = "Apr"
+  second_quarter_day   = "1"
+  third_quarter_month  = "Jul"
+  third_quarter_day    = "1"
+  fourth_quarter_month = "Oct"
+  fourth_quarter_day   = "1"
+  custom_days          = [stonebranch_custom_day.test.name]
 }
 `, name)
 }

@@ -58,21 +58,31 @@ type CalendarResourceModel struct {
 
 	// Business services
 	OpswiseGroups types.List `tfsdk:"opswise_groups"`
+
+	// Custom days (holiday/period exception dates) linked to this calendar
+	CustomDays types.List `tfsdk:"custom_days"`
 }
 
 // CalendarAPIModel represents the API request/response structure.
 type CalendarAPIModel struct {
-	SysId              string           `json:"sysId,omitempty"`
-	Name               string           `json:"name"`
-	Version            int64            `json:"version,omitempty"`
-	Comments           string           `json:"comments,omitempty"`
-	FirstDayOfWeek     string           `json:"firstDayOfWeek,omitempty"`
-	BusinessDays       *BusinessDaysAPI `json:"businessDays,omitempty"`
-	FirstQuarterStart  *QuarterAPI      `json:"firstQuarterStart,omitempty"`
-	SecondQuarterStart *QuarterAPI      `json:"secondQuarterStart,omitempty"`
-	ThirdQuarterStart  *QuarterAPI      `json:"thirdQuarterStart,omitempty"`
-	FourthQuarterStart *QuarterAPI      `json:"fourthQuarterStart,omitempty"`
-	OpswiseGroups      []string         `json:"opswiseGroups,omitempty"`
+	SysId              string            `json:"sysId,omitempty"`
+	Name               string            `json:"name"`
+	Version            int64             `json:"version,omitempty"`
+	Comments           string            `json:"comments,omitempty"`
+	FirstDayOfWeek     string            `json:"firstDayOfWeek,omitempty"`
+	BusinessDays       *BusinessDaysAPI  `json:"businessDays,omitempty"`
+	FirstQuarterStart  *QuarterAPI       `json:"firstQuarterStart,omitempty"`
+	SecondQuarterStart *QuarterAPI       `json:"secondQuarterStart,omitempty"`
+	ThirdQuarterStart  *QuarterAPI       `json:"thirdQuarterStart,omitempty"`
+	FourthQuarterStart *QuarterAPI       `json:"fourthQuarterStart,omitempty"`
+	OpswiseGroups      []string          `json:"opswiseGroups,omitempty"`
+	CustomDays         []CustomDayRefAPI `json:"customDays,omitempty"`
+}
+
+// CustomDayRefAPI represents a reference to a custom day by name.
+type CustomDayRefAPI struct {
+	Name  string `json:"name,omitempty"`
+	SysId string `json:"sysId,omitempty"`
 }
 
 // BusinessDaysAPI represents the business days wrapper.
@@ -179,6 +189,13 @@ func (r *CalendarResource) Schema(ctx context.Context, req resource.SchemaReques
 			// Business services
 			"opswise_groups": schema.ListAttribute{
 				MarkdownDescription: "List of business service names this calendar belongs to.",
+				Optional:            true,
+				ElementType:         types.StringType,
+			},
+
+			// Custom days
+			"custom_days": schema.ListAttribute{
+				MarkdownDescription: "List of custom day names (see `stonebranch_custom_day`) that define exception dates (holidays/periods) for this calendar.",
 				Optional:            true,
 				ElementType:         types.StringType,
 			},
@@ -412,6 +429,15 @@ func (r *CalendarResource) toAPIModel(ctx context.Context, data *CalendarResourc
 		model.OpswiseGroups = groups
 	}
 
+	// Handle custom_days list
+	if !data.CustomDays.IsNull() && !data.CustomDays.IsUnknown() {
+		var names []string
+		data.CustomDays.ElementsAs(ctx, &names, false)
+		for _, name := range names {
+			model.CustomDays = append(model.CustomDays, CustomDayRefAPI{Name: name})
+		}
+	}
+
 	return model
 }
 
@@ -469,5 +495,17 @@ func (r *CalendarResource) fromAPIModel(ctx context.Context, apiModel *CalendarA
 		data.OpswiseGroups = groups
 	} else {
 		data.OpswiseGroups = types.ListNull(types.StringType)
+	}
+
+	// Handle custom_days
+	if len(apiModel.CustomDays) > 0 {
+		names := make([]string, len(apiModel.CustomDays))
+		for i, cd := range apiModel.CustomDays {
+			names[i] = cd.Name
+		}
+		customDays, _ := types.ListValueFrom(ctx, types.StringType, names)
+		data.CustomDays = customDays
+	} else {
+		data.CustomDays = types.ListNull(types.StringType)
 	}
 }

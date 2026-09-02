@@ -91,6 +91,22 @@ resource "stonebranch_calendar" "weekend" {
   first_day_of_week = "Sunday"
 }
 
+# Calendar with custom-day exceptions (holidays)
+resource "stonebranch_custom_day" "new_years" {
+  name  = "tf-example-custom-day-new-years"
+  ctype = "Single Date"
+  date  = "2027-01-01"
+}
+
+resource "stonebranch_calendar" "with_holidays" {
+  name              = "tf-example-calendar-with-holidays"
+  comments          = "Business calendar with holiday exceptions"
+  business_days     = "Monday,Tuesday,Wednesday,Thursday,Friday"
+  first_day_of_week = "Monday"
+
+  custom_days = [stonebranch_custom_day.new_years.name]
+}
+
 # Use calendar in a time trigger
 resource "stonebranch_trigger_time" "daily_with_calendar" {
   name        = "tf-example-trigger-with-calendar"
@@ -118,6 +134,7 @@ resource "stonebranch_trigger_time" "daily_with_calendar" {
 
 - `business_days` (String) Comma-separated list of business days with capitalized names. Example: 'Monday,Tuesday,Wednesday,Thursday,Friday'. Defaults to server setting if not specified.
 - `comments` (String) Comments or description for the calendar.
+- `custom_days` (List of String) List of custom day names (see `stonebranch_custom_day`) that define exception dates (holidays/periods) for this calendar.
 - `first_day_of_week` (String) First day of the week. Values: 'Sunday', 'Monday'. Defaults to server setting if not specified.
 - `first_quarter_day` (String) Day when first quarter starts (1-31).
 - `first_quarter_month` (String) Month when first quarter starts (Jan, Feb, Mar, etc.).
