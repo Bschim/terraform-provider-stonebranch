@@ -130,17 +130,36 @@ resource "stonebranch_workflow_edge" "start_to_b" {
 }
 
 # process_a -> finish
+#
+# `condition` controls when the edge is followed. When omitted, UAC
+# defaults to a Status condition of "Success". Here we require process_a
+# to have exited with code 0 specifically.
 resource "stonebranch_workflow_edge" "a_to_finish" {
   workflow_name = stonebranch_task_workflow.example.name
   source_id     = stonebranch_workflow_vertex.process_a.vertex_id
   target_id     = stonebranch_workflow_vertex.finish.vertex_id
+
+  condition = {
+    type      = "Exit Code"
+    exit_code = "0"
+  }
 }
 
 # process_b -> finish
+#
+# A Variable condition compares two runtime variable values. `first_value`
+# and `second_value` typically reference `$${variable}` expressions.
 resource "stonebranch_workflow_edge" "b_to_finish" {
   workflow_name = stonebranch_task_workflow.example.name
   source_id     = stonebranch_workflow_vertex.process_b.vertex_id
   target_id     = stonebranch_workflow_vertex.finish.vertex_id
+
+  condition = {
+    type         = "Variable"
+    first_value  = "$${OUTPUT_LINE_COUNT}"
+    operator     = "!="
+    second_value = "$${EXPECTED_LINE_COUNT}"
+  }
 }
 
 # Output workflow details
@@ -160,4 +179,17 @@ output "workflow_name" {
 
 ### Optional
 
+- `condition` (Attributes) Branch condition controlling when the target task runs. Exactly one shape applies, selected by `type`: 'Status' (default, requires `status`), 'Exit Code' (requires `exit_code`), or 'Variable' (requires `first_value`, `operator`, `second_value`). If omitted entirely, UAC defaults to a Status condition of 'Success'. (see [below for nested schema](#nestedatt--condition))
 - `straight_edge` (Boolean) Whether to draw the edge as a straight line in the workflow diagram.
+
+<a id="nestedatt--condition"></a>
+### Nested Schema for `condition`
+
+Optional:
+
+- `exit_code` (String) Required when `type` is 'Exit Code'. The exit code value to match.
+- `first_value` (String) Required when `type` is 'Variable'. Left-hand side of the comparison (typically a `${variable}` reference).
+- `operator` (String) Required when `type` is 'Variable'. Comparison operator (e.g. '=', '!=').
+- `second_value` (String) Required when `type` is 'Variable'. Right-hand side of the comparison.
+- `status` (String) Required when `type` is 'Status'. One of: 'Success', 'Failure', 'Success/Failure'.
+- `type` (String) Condition shape. One of: 'Status' (default), 'Exit Code', 'Variable'.

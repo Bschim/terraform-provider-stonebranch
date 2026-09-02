@@ -56,7 +56,119 @@ func TestAccWorkflowEdgeResource_multipleEdges(t *testing.T) {
 	})
 }
 
+func TestAccWorkflowEdgeResource_conditionStatus(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test-wfe-cs")
+	resourceName := "stonebranch_workflow_edge.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkflowEdgeConfig_condition(rName, `
+  condition = {
+    type   = "Status"
+    status = "Failure"
+  }`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "condition.type", "Status"),
+					resource.TestCheckResourceAttr(resourceName, "condition.status", "Failure"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWorkflowEdgeResource_conditionExitCode(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test-wfe-ec")
+	resourceName := "stonebranch_workflow_edge.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkflowEdgeConfig_condition(rName, `
+  condition = {
+    type      = "Exit Code"
+    exit_code = "0"
+  }`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "condition.type", "Exit Code"),
+					resource.TestCheckResourceAttr(resourceName, "condition.exit_code", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccWorkflowEdgeResource_conditionVariable(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test-wfe-var")
+	resourceName := "stonebranch_workflow_edge.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkflowEdgeConfig_condition(rName, `
+  condition = {
+    type         = "Variable"
+    first_value  = "$${OUTPUT_LINE_COUNT}"
+    operator     = "!="
+    second_value = "$${FILE_COUNT}"
+  }`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "condition.type", "Variable"),
+					resource.TestCheckResourceAttr(resourceName, "condition.first_value", "${OUTPUT_LINE_COUNT}"),
+					resource.TestCheckResourceAttr(resourceName, "condition.operator", "!="),
+					resource.TestCheckResourceAttr(resourceName, "condition.second_value", "${FILE_COUNT}"),
+				),
+			},
+		},
+	})
+}
+
 // Test configuration helpers
+
+func testAccWorkflowEdgeConfig_condition(name string, conditionBlock string) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_task_workflow" "test" {
+  name = "%[1]s-wf"
+}
+
+resource "stonebranch_task_unix" "task1" {
+  name       = "%[1]s-task1"
+  agent_var  = "agent_name"
+  command    = "echo task1"
+  exit_codes = "0"
+}
+
+resource "stonebranch_task_unix" "task2" {
+  name       = "%[1]s-task2"
+  agent_var  = "agent_name"
+  command    = "echo task2"
+  exit_codes = "0"
+}
+
+resource "stonebranch_workflow_vertex" "vertex1" {
+  workflow_name = stonebranch_task_workflow.test.name
+  task_name     = stonebranch_task_unix.task1.name
+}
+
+resource "stonebranch_workflow_vertex" "vertex2" {
+  workflow_name = stonebranch_task_workflow.test.name
+  task_name     = stonebranch_task_unix.task2.name
+}
+
+resource "stonebranch_workflow_edge" "test" {
+  workflow_name = stonebranch_task_workflow.test.name
+  source_id     = stonebranch_workflow_vertex.vertex1.vertex_id
+  target_id     = stonebranch_workflow_vertex.vertex2.vertex_id
+%[2]s
+}
+`, name, conditionBlock)
+}
 
 func testAccWorkflowEdgeConfig_basic(name string) string {
 	return sbacctest.ProviderConfig() + fmt.Sprintf(`
