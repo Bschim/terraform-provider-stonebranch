@@ -115,17 +115,36 @@ resource "stonebranch_workflow_edge" "start_to_b" {
 }
 
 # process_a -> finish
+#
+# `condition` controls when the edge is followed. When omitted, UAC
+# defaults to a Status condition of "Success". Here we require process_a
+# to have exited with code 0 specifically.
 resource "stonebranch_workflow_edge" "a_to_finish" {
   workflow_name = stonebranch_task_workflow.example.name
   source_id     = stonebranch_workflow_vertex.process_a.vertex_id
   target_id     = stonebranch_workflow_vertex.finish.vertex_id
+
+  condition = {
+    type      = "Exit Code"
+    exit_code = "0"
+  }
 }
 
 # process_b -> finish
+#
+# A Variable condition compares two runtime variable values. `first_value`
+# and `second_value` typically reference `$${variable}` expressions.
 resource "stonebranch_workflow_edge" "b_to_finish" {
   workflow_name = stonebranch_task_workflow.example.name
   source_id     = stonebranch_workflow_vertex.process_b.vertex_id
   target_id     = stonebranch_workflow_vertex.finish.vertex_id
+
+  condition = {
+    type         = "Variable"
+    first_value  = "$${OUTPUT_LINE_COUNT}"
+    operator     = "!="
+    second_value = "$${EXPECTED_LINE_COUNT}"
+  }
 }
 
 # Output workflow details
