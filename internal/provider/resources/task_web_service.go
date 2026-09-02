@@ -103,6 +103,9 @@ type TaskWebServiceResourceModel struct {
 	ExclusiveTasks   types.List `tfsdk:"exclusive_tasks"`
 	VirtualResources types.List `tfsdk:"virtual_resources"`
 
+	// Actions
+	Actions types.Object `tfsdk:"actions"`
+
 	// Business services
 	OpswiseGroups types.List `tfsdk:"opswise_groups"`
 }
@@ -169,6 +172,8 @@ type TaskWebServiceAPIModel struct {
 	HoldResources    bool                          `json:"holdResources,omitempty"`
 	ExclusiveTasks   []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
 	VirtualResources []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
+
+	Actions *ActionsAPIModel `json:"actions,omitempty"`
 
 	OpswiseGroups []string `json:"opswiseGroups,omitempty"`
 }
@@ -416,6 +421,9 @@ func (r *TaskWebServiceResource) Schema(ctx context.Context, req resource.Schema
 			"exclusive_tasks":   TaskExclusiveTasksSchema(),
 			"virtual_resources": TaskVirtualResourcesSchema(),
 
+			// Actions
+			"actions": TaskActionsSchema(),
+
 			// Business services
 			"opswise_groups": schema.ListAttribute{
 				MarkdownDescription: "List of business service names this task belongs to.",
@@ -661,6 +669,9 @@ func (r *TaskWebServiceResource) toAPIModel(ctx context.Context, data *TaskWebSe
 	model.ExclusiveTasks = TaskExclusiveTasksToAPI(ctx, data.ExclusiveTasks)
 	model.VirtualResources = TaskVirtualResourcesToAPI(ctx, data.VirtualResources)
 
+	// Handle actions
+	model.Actions = TaskActionsToAPI(ctx, data.Actions)
+
 	// Handle URL parameters
 	if !data.UrlParameters.IsNull() && !data.UrlParameters.IsUnknown() {
 		var params []NameValueModel
@@ -771,6 +782,9 @@ func (r *TaskWebServiceResource) fromAPIModel(ctx context.Context, apiModel *Tas
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
 	data.ExclusiveTasks = TaskExclusiveTasksFromAPI(apiModel.ExclusiveTasks)
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
+
+	// Handle actions
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
 
 	// URL parameters
 	if len(apiModel.UrlParameters) > 0 {

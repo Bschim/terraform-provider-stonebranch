@@ -113,7 +113,7 @@ resource "stonebranch_universal_template" "aws_deploy" {
       field_mapping = "Text Field 1"
       field_type    = "Text"
       hint          = "Optional deployment notes"
-    },
+    }
   ]
 }
 ```

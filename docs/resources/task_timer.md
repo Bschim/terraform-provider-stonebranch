@@ -98,6 +98,7 @@ resource "stonebranch_task_timer" "configurable_delay" {
 
 ### Optional
 
+- `actions` (Attributes) Actions to trigger based on the task's status or exit code: launching/controlling other tasks, sending email or SNMP notifications, or setting variables. (see [below for nested schema](#nestedatt--actions))
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
 - `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `opswise_groups` (List of String) List of business service names this task belongs to.
@@ -113,6 +114,222 @@ resource "stonebranch_task_timer" "configurable_delay" {
 
 - `sys_id` (String) System ID of the task (assigned by StoneBranch).
 - `version` (Number) Version number of the task (for optimistic locking).
+
+<a id="nestedatt--actions"></a>
+### Nested Schema for `actions`
+
+Optional:
+
+- `abort_actions` (Attributes List) Abort actions to take when the task matches the configured status/exit code. (see [below for nested schema](#nestedatt--actions--abort_actions))
+- `email_notifications` (Attributes List) Email notifications to send when the task matches the configured status/exit code. (see [below for nested schema](#nestedatt--actions--email_notifications))
+- `set_variable_actions` (Attributes List) Actions to set a variable when the task matches the configured status/exit code. (see [below for nested schema](#nestedatt--actions--set_variable_actions))
+- `snmp_notifications` (Attributes List) SNMP notifications to send when the task matches the configured status/exit code. (see [below for nested schema](#nestedatt--actions--snmp_notifications))
+- `system_operations` (Attributes List) System operations (e.g. Launch Task) to perform when the task matches the configured status/exit code. (see [below for nested schema](#nestedatt--actions--system_operations))
+
+<a id="nestedatt--actions--abort_actions"></a>
+### Nested Schema for `actions.abort_actions`
+
+Optional:
+
+- `cancel_process` (Boolean) Whether to cancel the task's process.
+- `description` (String) Description of this action.
+- `exit_codes` (String) Comma-separated list of exit codes that trigger this action.
+- `halt_on_finish` (Boolean) Whether to halt the workflow when this task finishes.
+- `inheritance` (String) Inheritance setting for this action (e.g. 'Children').
+- `notify_on_early_finish` (Boolean) Whether to trigger this action when the task finishes early.
+- `notify_on_late_finish` (Boolean) Whether to trigger this action when the task finishes late.
+- `notify_on_late_start` (Boolean) Whether to trigger this action when the task starts late.
+- `notify_on_projected_late` (Boolean) Whether to trigger this action when the task is projected to be late.
+- `override_exit_code` (String) Exit code to report instead of the task's actual exit code.
+- `status` (String) Status(es) that trigger this action. Comma/newline-separated list of statuses (e.g. 'Success', 'Failed', 'Running/Problems').
+
+Read-Only:
+
+- `sys_id` (String) System ID of this action (assigned by StoneBranch).
+
+
+<a id="nestedatt--actions--email_notifications"></a>
+### Nested Schema for `actions.email_notifications`
+
+Optional:
+
+- `attach_file` (Boolean) Whether to attach a file.
+- `attach_job_log` (Boolean) Whether to attach the job log.
+- `attach_local_file` (Boolean) Whether to attach a local file.
+- `attach_std_error` (Boolean) Whether to attach the task's stderr output.
+- `attach_std_out` (Boolean) Whether to attach the task's stdout output.
+- `bcc` (String) Comma-separated list of 'Bcc' recipients.
+- `body` (String) Body of the notification email.
+- `cc` (String) Comma-separated list of 'Cc' recipients.
+- `description` (String) Description of this action.
+- `email_connection` (String) Name of the email connection to send through.
+- `email_template` (String) Name of the email template to use.
+- `email_template_var` (String) Variable containing the email template name.
+- `exit_codes` (String) Comma-separated list of exit codes that trigger this action.
+- `file_name` (String) Name of the file to attach.
+- `file_num_lines` (Number) Number of lines of the file to include.
+- `file_scan_text` (String) Text to scan for within the file attachment.
+- `file_start_line` (Number) Starting line of the file to include.
+- `inheritance` (String) Inheritance setting for this action (e.g. 'Children').
+- `joblog_num_lines` (Number) Number of lines of the job log to include.
+- `joblog_scan_text` (String) Text to scan for within the job log.
+- `joblog_start_line` (Number) Starting line of the job log to include.
+- `list_report_format` (String) Format of the attached report listing. Values: 'PDF', 'CSV', 'HTML'.
+- `local_attachment` (String) Name of the local file to attach.
+- `local_attachments_path` (String) Path to local file attachments.
+- `notify_on_early_finish` (Boolean) Whether to trigger this action when the task finishes early.
+- `notify_on_late_finish` (Boolean) Whether to trigger this action when the task finishes late.
+- `notify_on_late_start` (Boolean) Whether to trigger this action when the task starts late.
+- `notify_on_projected_late` (Boolean) Whether to trigger this action when the task is projected to be late.
+- `reply_to` (String) Reply-To address.
+- `report` (Attributes) Report to attach to the email notification. (see [below for nested schema](#nestedatt--actions--email_notifications--report))
+- `report_id` (String) ID of the report to attach.
+- `report_var` (String) Variable containing the report ID.
+- `status` (String) Status(es) that trigger this action. Comma/newline-separated list of statuses (e.g. 'Success', 'Failed', 'Running/Problems').
+- `stderr_num_lines` (Number) Number of lines of stderr to include.
+- `stderr_scan_text` (String) Text to scan for within stderr.
+- `stderr_start_line` (Number) Starting line of stderr to include.
+- `stdout_num_lines` (Number) Number of lines of stdout to include.
+- `stdout_scan_text` (String) Text to scan for within stdout.
+- `stdout_start_line` (Number) Starting line of stdout to include.
+- `subject` (String) Subject of the notification email.
+- `to` (String) Comma-separated list of 'To' recipients.
+- `use_report_var` (String) Whether/how to use the report variable.
+
+Read-Only:
+
+- `sys_id` (String) System ID of this action (assigned by StoneBranch).
+
+<a id="nestedatt--actions--email_notifications--report"></a>
+### Nested Schema for `actions.email_notifications.report`
+
+Optional:
+
+- `group_name` (String) Group name the report is scoped to.
+- `group_names` (List of String) Group names the report is scoped to.
+- `title` (String) Title of the report.
+- `user_name` (String) User name the report is scoped to.
+
+
+
+<a id="nestedatt--actions--set_variable_actions"></a>
+### Nested Schema for `actions.set_variable_actions`
+
+Required:
+
+- `variable_name` (String) Name of the variable to set.
+
+Optional:
+
+- `description` (String) Description of this action.
+- `exit_codes` (String) Comma-separated list of exit codes that trigger this action.
+- `inheritance` (String) Inheritance setting for this action (e.g. 'Children').
+- `notification_option` (String) Notification option for this action.
+- `notify_on_early_finish` (Boolean) Whether to trigger this action when the task finishes early.
+- `notify_on_late_finish` (Boolean) Whether to trigger this action when the task finishes late.
+- `notify_on_late_start` (Boolean) Whether to trigger this action when the task starts late.
+- `notify_on_projected_late` (Boolean) Whether to trigger this action when the task is projected to be late.
+- `status` (String) Status(es) that trigger this action. Comma/newline-separated list of statuses (e.g. 'Success', 'Failed', 'Running/Problems').
+- `variable_description` (String) Description of the variable.
+- `variable_scope` (String) Scope of the variable. Values: 'Task', 'Workflow', 'Global'.
+- `variable_value` (String) Value to set the variable to.
+
+Read-Only:
+
+- `sys_id` (String) System ID of this action (assigned by StoneBranch).
+
+
+<a id="nestedatt--actions--snmp_notifications"></a>
+### Nested Schema for `actions.snmp_notifications`
+
+Optional:
+
+- `description` (String) Description of this action.
+- `exit_codes` (String) Comma-separated list of exit codes that trigger this action.
+- `inheritance` (String) Inheritance setting for this action (e.g. 'Children').
+- `notify_on_early_finish` (Boolean) Whether to trigger this action when the task finishes early.
+- `notify_on_late_finish` (Boolean) Whether to trigger this action when the task finishes late.
+- `notify_on_late_start` (Boolean) Whether to trigger this action when the task starts late.
+- `notify_on_projected_late` (Boolean) Whether to trigger this action when the task is projected to be late.
+- `severity` (String) Severity of the SNMP notification.
+- `snmp_manager` (String) Name of the SNMP manager connection to send the trap to.
+- `status` (String) Status(es) that trigger this action. Comma/newline-separated list of statuses (e.g. 'Success', 'Failed', 'Running/Problems').
+
+Read-Only:
+
+- `sys_id` (String) System ID of this action (assigned by StoneBranch).
+
+
+<a id="nestedatt--actions--system_operations"></a>
+### Nested Schema for `actions.system_operations`
+
+Optional:
+
+- `agent` (String) Name of the agent to launch the task on.
+- `agent_cluster` (String) Name of the agent cluster to launch the task on.
+- `agent_cluster_var` (String) Variable containing the agent cluster name.
+- `agent_var` (String) Variable containing the agent name.
+- `description` (String) Description of this action.
+- `exec_command` (String) Command to execute against the matched task instance(s). Defaults to 'Cancel'.
+- `exec_criteria` (String) Criteria for selecting the task instance to operate on. Defaults to 'Oldest Active Instance'.
+- `exec_id` (String) ID of the task instance to operate on.
+- `exec_lookup_option` (String) How to look up the task instance. Values: 'Instance Name', 'Instance Id'. Defaults to 'Instance Name'.
+- `exec_name` (String) Name of the task instance to operate on.
+- `exec_workflow_name` (String) Workflow instance name to match against.
+- `exec_workflow_name_cond` (String) Condition used to match the workflow instance name. Defaults to 'Equals'.
+- `exit_codes` (String) Comma-separated list of exit codes that trigger this action.
+- `inheritance` (String) Inheritance setting for this action (e.g. 'Children').
+- `limit` (String) Maximum number of task instances (when `task_limit_type` is 'Limited').
+- `notification_option` (String) When this action is evaluated relative to the task's completion. Defaults to 'Operation Failure'.
+- `notify_on_early_finish` (Boolean) Whether to trigger this action when the task finishes early.
+- `notify_on_late_finish` (Boolean) Whether to trigger this action when the task finishes late.
+- `notify_on_late_start` (Boolean) Whether to trigger this action when the task starts late.
+- `notify_on_projected_late` (Boolean) Whether to trigger this action when the task is projected to be late.
+- `operation` (String) System operation to perform. Values: 'Launch Task', 'Cancel', 'Force Finish', 'Force Finish/Success', 'Skip On', 'Skip Off', 'Hold', 'Release', etc. Defaults to 'Launch Task'.
+- `override_trigger_date_offset` (String) Date offset to apply to the overridden trigger.
+- `override_trigger_date_time` (Boolean) Whether to override the trigger date/time.
+- `override_trigger_time` (String) Overridden trigger time (HH:MM). Defaults to '00:00'.
+- `status` (String) Status(es) that trigger this action. Comma/newline-separated list of statuses (e.g. 'Success', 'Failed', 'Running/Problems').
+- `task` (String) Name of the task to operate on.
+- `task_limit_type` (String) Limit type for launching multiple task instances. Values: 'Unlimited', 'Limited'. Defaults to 'Unlimited'.
+- `task_var` (String) Variable containing the task name.
+- `trigger` (String) Name of the trigger to use when launching the task.
+- `trigger_var` (String) Variable containing the trigger name.
+- `variables` (Attributes List) List of task variables. These variables are scoped to the task and can be referenced using `${variable_name}` syntax. (see [below for nested schema](#nestedatt--actions--system_operations--variables))
+- `variables_unresolved` (Boolean) Whether variable references in this action are left unresolved.
+- `vertex_selection` (Boolean) Whether to target specific workflow vertices instead of the whole workflow.
+- `vertices` (Attributes List) Specific workflow vertices to target when launching a workflow task (used when `vertex_selection` is enabled). (see [below for nested schema](#nestedatt--actions--system_operations--vertices))
+- `virtual_resource` (String) Name of the virtual resource to operate on.
+- `virtual_resource_var` (String) Variable containing the virtual resource name.
+
+Read-Only:
+
+- `sys_id` (String) System ID of this action (assigned by StoneBranch).
+
+<a id="nestedatt--actions--system_operations--variables"></a>
+### Nested Schema for `actions.system_operations.variables`
+
+Required:
+
+- `name` (String) Name of the variable.
+
+Optional:
+
+- `description` (String) Description of the variable.
+- `value` (String) Value of the variable.
+
+
+<a id="nestedatt--actions--system_operations--vertices"></a>
+### Nested Schema for `actions.system_operations.vertices`
+
+Optional:
+
+- `task_name` (String) Name of the task at this vertex.
+- `vertex_id` (String) ID of the vertex.
+- `vertex_name` (String) Name of the vertex.
+
+
+
 
 <a id="nestedatt--exclusive_tasks"></a>
 ### Nested Schema for `exclusive_tasks`

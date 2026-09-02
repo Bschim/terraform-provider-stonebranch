@@ -79,6 +79,9 @@ type TaskWorkflowResourceModel struct {
 	StepActions    types.List `tfsdk:"step_actions"`
 	StepConditions types.List `tfsdk:"step_conditions"`
 
+	// Actions
+	Actions types.Object `tfsdk:"actions"`
+
 	// Business services
 	OpswiseGroups types.List `tfsdk:"opswise_groups"`
 }
@@ -117,6 +120,8 @@ type TaskWorkflowAPIModel struct {
 	RunCriteria    []TaskRunCriterionAPIModel  `json:"runCriteria,omitempty"`
 	StepActions    []TaskStepActionAPIModel    `json:"stepActions,omitempty"`
 	StepConditions []TaskStepConditionAPIModel `json:"stepConditions,omitempty"`
+
+	Actions *ActionsAPIModel `json:"actions,omitempty"`
 
 	OpswiseGroups []string `json:"opswiseGroups,omitempty"`
 
@@ -266,6 +271,9 @@ func (r *TaskWorkflowResource) Schema(ctx context.Context, req resource.SchemaRe
 			"run_criteria":    TaskRunCriteriaSchema(),
 			"step_actions":    TaskStepActionsSchema(),
 			"step_conditions": TaskStepConditionsSchema(),
+
+			// Actions
+			"actions": TaskActionsSchema(),
 
 			// Business services
 			"opswise_groups": schema.ListAttribute{
@@ -555,6 +563,9 @@ func (r *TaskWorkflowResource) toAPIModel(ctx context.Context, data *TaskWorkflo
 	model.StepActions = TaskStepActionsToAPI(ctx, data.StepActions)
 	model.StepConditions = TaskStepConditionsToAPI(ctx, data.StepConditions)
 
+	// Handle actions
+	model.Actions = TaskActionsToAPI(ctx, data.Actions)
+
 	// Handle opswise_groups list
 	if !data.OpswiseGroups.IsNull() && !data.OpswiseGroups.IsUnknown() {
 		var groups []string
@@ -609,6 +620,9 @@ func (r *TaskWorkflowResource) fromAPIModel(ctx context.Context, apiModel *TaskW
 	data.RunCriteria = TaskRunCriteriaFromAPI(apiModel.RunCriteria)
 	data.StepActions = TaskStepActionsFromAPI(apiModel.StepActions)
 	data.StepConditions = TaskStepConditionsFromAPI(apiModel.StepConditions)
+
+	// Handle actions
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {
