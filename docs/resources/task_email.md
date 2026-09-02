@@ -137,7 +137,9 @@ resource "stonebranch_task_email" "with_reply_to" {
 - `cc_recipients` (String) Comma-separated list of CC recipients.
 - `email_connection` (String) Name of the email connection to use.
 - `email_connection_var` (String) Variable containing the email connection name.
+- `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
 - `exit_codes` (String) Exit codes that indicate success (comma-separated).
+- `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `list_report_format` (String) Format for list reports (e.g., 'CSV', 'PDF').
 - `local_attachment` (String) Name of the local file to attach.
 - `local_attachments_path` (String) Path to the directory containing local attachments.
@@ -154,11 +156,24 @@ resource "stonebranch_task_email" "with_reply_to" {
 - `template_var` (String) Variable containing the email template name.
 - `to_recipients` (String) Comma-separated list of To recipients.
 - `variables` (Attributes List) List of task variables. These variables are scoped to the task and can be referenced using `${variable_name}` syntax. (see [below for nested schema](#nestedatt--variables))
+- `virtual_resources` (Attributes List) List of virtual resources consumed by this task during execution. (see [below for nested schema](#nestedatt--virtual_resources))
 
 ### Read-Only
 
 - `sys_id` (String) System ID of the task (assigned by StoneBranch).
 - `version` (Number) Version number of the task (for optimistic locking).
+
+<a id="nestedatt--exclusive_tasks"></a>
+### Nested Schema for `exclusive_tasks`
+
+Required:
+
+- `task` (String) Name of the task that this task is mutually exclusive with.
+
+Optional:
+
+- `type` (String) Type of the exclusive-task relationship. Defaults to 'Direct' when not specified.
+
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
@@ -171,3 +186,13 @@ Optional:
 
 - `description` (String) Description of the variable.
 - `value` (String) Value of the variable.
+
+
+<a id="nestedatt--virtual_resources"></a>
+### Nested Schema for `virtual_resources`
+
+Optional:
+
+- `amount` (Number) Amount of the virtual resource consumed by this task.
+- `resource` (String) Name of the virtual resource consumed (see `stonebranch_virtual_resource`).
+- `resource_var` (String) Variable containing the virtual resource name.

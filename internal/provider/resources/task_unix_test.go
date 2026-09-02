@@ -204,3 +204,72 @@ resource "stonebranch_task_unix" "test" {
 }
 `, name, varValue)
 }
+
+func TestAccTaskUnixResource_withResourceManagement(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test")
+	resourceName := "stonebranch_task_unix.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTaskUnixConfig_withResourceManagement(rName, 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "hold_resources", "true"),
+					resource.TestCheckResourceAttr(resourceName, "exclusive_tasks.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "exclusive_tasks.0.task", rName+"-other"),
+					resource.TestCheckResourceAttr(resourceName, "virtual_resources.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "virtual_resources.0.resource", rName+"-vres"),
+					resource.TestCheckResourceAttr(resourceName, "virtual_resources.0.amount", "1"),
+				),
+			},
+			// Update amount
+			{
+				Config: testAccTaskUnixConfig_withResourceManagement(rName, 2),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "virtual_resources.0.amount", "2"),
+				),
+			},
+		},
+	})
+}
+
+func testAccTaskUnixConfig_withResourceManagement(name string, amount int) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_task_unix" "other" {
+  name       = "%[1]s-other"
+  agent_var  = "agent_name"
+  command    = "echo other"
+  exit_codes = "0"
+}
+
+resource "stonebranch_virtual_resource" "test" {
+  name  = "%[1]s-vres"
+  limit = 5
+}
+
+resource "stonebranch_task_unix" "test" {
+  name       = %[1]q
+  command    = "echo hello"
+  agent_var  = "agent_name"
+  exit_codes = "0"
+
+  hold_resources = true
+
+  exclusive_tasks = [
+    {
+      task = stonebranch_task_unix.other.name
+    }
+  ]
+
+  virtual_resources = [
+    {
+      resource = stonebranch_virtual_resource.test.name
+      amount   = %[2]d
+    }
+  ]
+}
+`, name, amount)
+}

@@ -69,3 +69,34 @@ resource "stonebranch_script" "backup" {
     echo "Backup completed"
   EOT
 }
+
+# Unix task with resource management: mutual exclusion and virtual resource consumption
+resource "stonebranch_task_unix" "with_resource_management" {
+  name    = "tf-example-unix-resource-mgmt"
+  summary = "Unix task demonstrating exclusive_tasks and virtual_resources"
+
+  agent_var = var.agent_var
+
+  command    = "echo 'Running exclusively'"
+  exit_codes = "0"
+
+  hold_resources = true
+
+  exclusive_tasks = [
+    {
+      task = stonebranch_task_unix.hello.name
+    }
+  ]
+
+  virtual_resources = [
+    {
+      resource = stonebranch_virtual_resource.db_connections.name
+      amount   = 1
+    }
+  ]
+}
+
+resource "stonebranch_virtual_resource" "db_connections" {
+  name  = "tf-example-db-connections"
+  limit = 5
+}

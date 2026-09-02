@@ -65,6 +65,11 @@ type TaskUniversalAwsS3ResourceModel struct {
 	// Variables
 	Variables types.List `tfsdk:"variables"`
 
+	// Resource management
+	HoldResources    types.Bool `tfsdk:"hold_resources"`
+	ExclusiveTasks   types.List `tfsdk:"exclusive_tasks"`
+	VirtualResources types.List `tfsdk:"virtual_resources"`
+
 	// Business services
 	OpswiseGroups types.List `tfsdk:"opswise_groups"`
 
@@ -155,6 +160,10 @@ type TaskUniversalAwsS3APIModel struct {
 	RetrySuppressFailure bool  `json:"retrySuppressFailure,omitempty"`
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
+
+	HoldResources    bool                          `json:"holdResources,omitempty"`
+	ExclusiveTasks   []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
+	VirtualResources []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
 
 	OpswiseGroups []string `json:"opswiseGroups,omitempty"`
 
@@ -293,6 +302,15 @@ func (r *TaskUniversalAwsS3Resource) Schema(ctx context.Context, req resource.Sc
 
 			// Variables
 			"variables": TaskVariablesSchema(),
+
+			// Resource management
+			"hold_resources": schema.BoolAttribute{
+				MarkdownDescription: "Whether to hold the task's virtual resources for the duration of any retries.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"exclusive_tasks":   TaskExclusiveTasksSchema(),
+			"virtual_resources": TaskVirtualResourcesSchema(),
 
 			// Business services
 			"opswise_groups": schema.ListAttribute{
@@ -751,6 +769,13 @@ func (r *TaskUniversalAwsS3Resource) toAPIModel(ctx context.Context, data *TaskU
 	// Handle variables
 	model.Variables = TaskVariablesToAPI(ctx, data.Variables)
 
+	// Handle resource management fields
+	if !data.HoldResources.IsNull() && !data.HoldResources.IsUnknown() {
+		model.HoldResources = data.HoldResources.ValueBool()
+	}
+	model.ExclusiveTasks = TaskExclusiveTasksToAPI(ctx, data.ExclusiveTasks)
+	model.VirtualResources = TaskVirtualResourcesToAPI(ctx, data.VirtualResources)
+
 	// Handle opswise_groups list
 	if !data.OpswiseGroups.IsNull() && !data.OpswiseGroups.IsUnknown() {
 		var groups []string
@@ -854,6 +879,11 @@ func (r *TaskUniversalAwsS3Resource) fromAPIModel(ctx context.Context, apiModel 
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+
+	// Handle resource management fields
+	data.HoldResources = types.BoolValue(apiModel.HoldResources)
+	data.ExclusiveTasks = TaskExclusiveTasksFromAPI(apiModel.ExclusiveTasks)
+	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

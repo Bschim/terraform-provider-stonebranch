@@ -72,3 +72,34 @@ resource "stonebranch_task_workflow" "production" {
   retry_maximum  = 2
   retry_interval = 600
 }
+
+# Workflow with run_criteria referencing a task within it.
+#
+# Note: the Stonebranch API requires the referenced task to already exist as
+# a vertex in the workflow before run_criteria can reference it, so the
+# stonebranch_workflow_vertex resource must be applied before (or alongside,
+# on a subsequent apply) the run_criteria that references it.
+resource "stonebranch_task_unix" "step" {
+  name       = "tf-example-workflow-step"
+  agent_var  = var.agent_var
+  command    = "echo step"
+  exit_codes = "0"
+}
+
+resource "stonebranch_task_workflow" "with_run_criteria" {
+  name    = "tf-example-run-criteria-workflow"
+  summary = "Workflow with a Skip Criteria on one of its tasks"
+
+  run_criteria = [
+    {
+      type         = "Skip Criteria"
+      task         = stonebranch_task_unix.step.name
+      business_day = true
+    }
+  ]
+}
+
+resource "stonebranch_workflow_vertex" "step" {
+  workflow_name = stonebranch_task_workflow.with_run_criteria.name
+  task_name     = stonebranch_task_unix.step.name
+}
