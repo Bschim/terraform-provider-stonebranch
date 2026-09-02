@@ -236,6 +236,50 @@ func TestAccTaskUnixResource_withResourceManagement(t *testing.T) {
 	})
 }
 
+func TestAccTaskUnixResource_withActions(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test")
+	depName := acctest.RandomWithPrefix("tf-test-dep")
+	resourceName := "stonebranch_task_unix.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create with actions
+			{
+				Config: testAccTaskUnixConfig_withActions(rName, depName, "Success"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "actions.system_operations.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "actions.system_operations.0.operation", "Launch Task"),
+					resource.TestCheckResourceAttr(resourceName, "actions.system_operations.0.task", depName),
+					resource.TestCheckResourceAttr(resourceName, "actions.system_operations.0.status", "Success"),
+					resource.TestCheckResourceAttr(resourceName, "actions.email_notifications.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "actions.email_notifications.0.status", "Failed"),
+					resource.TestCheckResourceAttr(resourceName, "actions.email_notifications.0.subject", "Task failed"),
+					resource.TestCheckResourceAttr(resourceName, "actions.email_notifications.0.to", "ops@example.com"),
+					resource.TestCheckResourceAttrSet(resourceName, "actions.email_notifications.0.email_connection"),
+				),
+			},
+			// Update actions
+			{
+				Config: testAccTaskUnixConfig_withActions(rName, depName, "Failed"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "actions.system_operations.0.status", "Failed"),
+				),
+			},
+			// ImportState
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateId:                        rName,
+				ImportStateVerifyIdentifierAttribute: "name",
+			},
+		},
+	})
+}
+
 func testAccTaskUnixConfig_withResourceManagement(name string, amount int) string {
 	return sbacctest.ProviderConfig() + fmt.Sprintf(`
 resource "stonebranch_task_unix" "other" {
@@ -272,4 +316,47 @@ resource "stonebranch_task_unix" "test" {
   ]
 }
 `, name, amount)
+}
+
+func testAccTaskUnixConfig_withActions(name, depName, launchStatus string) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_email_connection" "test" {
+  name          = "%[2]s-email"
+  smtp          = "smtp.example.com"
+  smtp_port     = 25
+  email_address = "test@example.com"
+}
+
+resource "stonebranch_task_unix" "dep" {
+  name       = %[2]q
+  command    = "echo dependency"
+  agent_var  = "agent_name"
+  exit_codes = "0"
+}
+
+resource "stonebranch_task_unix" "test" {
+  name       = %[1]q
+  command    = "echo hello"
+  agent_var  = "agent_name"
+  exit_codes = "0"
+
+  actions = {
+    system_operations = [
+      {
+        status    = %[3]q
+        operation = "Launch Task"
+        task      = stonebranch_task_unix.dep.name
+      }
+    ]
+    email_notifications = [
+      {
+        status           = "Failed"
+        subject          = "Task failed"
+        to               = "ops@example.com"
+        email_connection = stonebranch_email_connection.test.name
+      }
+    ]
+  }
+}
+`, name, depName, launchStatus)
 }

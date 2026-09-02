@@ -82,6 +82,9 @@ type TaskFileMonitorResourceModel struct {
 	ExclusiveTasks   types.List `tfsdk:"exclusive_tasks"`
 	VirtualResources types.List `tfsdk:"virtual_resources"`
 
+	// Actions
+	Actions types.Object `tfsdk:"actions"`
+
 	// Business services
 	OpswiseGroups types.List `tfsdk:"opswise_groups"`
 }
@@ -128,6 +131,8 @@ type TaskFileMonitorAPIModel struct {
 	HoldResources    bool                          `json:"holdResources,omitempty"`
 	ExclusiveTasks   []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
 	VirtualResources []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
+
+	Actions *ActionsAPIModel `json:"actions,omitempty"`
 
 	OpswiseGroups []string `json:"opswiseGroups,omitempty"`
 }
@@ -293,6 +298,9 @@ func (r *TaskFileMonitorResource) Schema(ctx context.Context, req resource.Schem
 			},
 			"exclusive_tasks":   TaskExclusiveTasksSchema(),
 			"virtual_resources": TaskVirtualResourcesSchema(),
+
+			// Actions
+			"actions": TaskActionsSchema(),
 
 			// Business services
 			"opswise_groups": schema.ListAttribute{
@@ -528,6 +536,9 @@ func (r *TaskFileMonitorResource) toAPIModel(ctx context.Context, data *TaskFile
 	model.ExclusiveTasks = TaskExclusiveTasksToAPI(ctx, data.ExclusiveTasks)
 	model.VirtualResources = TaskVirtualResourcesToAPI(ctx, data.VirtualResources)
 
+	// Handle actions
+	model.Actions = TaskActionsToAPI(ctx, data.Actions)
+
 	// Handle opswise_groups list
 	if !data.OpswiseGroups.IsNull() && !data.OpswiseGroups.IsUnknown() {
 		var groups []string
@@ -587,6 +598,9 @@ func (r *TaskFileMonitorResource) fromAPIModel(ctx context.Context, apiModel *Ta
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
 	data.ExclusiveTasks = TaskExclusiveTasksFromAPI(apiModel.ExclusiveTasks)
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
+
+	// Handle actions
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {
