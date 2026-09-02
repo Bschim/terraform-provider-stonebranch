@@ -69,6 +69,16 @@ type TaskWorkflowResourceModel struct {
 	// Variables
 	Variables types.List `tfsdk:"variables"`
 
+	// Resource management
+	HoldResources    types.Bool `tfsdk:"hold_resources"`
+	ExclusiveTasks   types.List `tfsdk:"exclusive_tasks"`
+	VirtualResources types.List `tfsdk:"virtual_resources"`
+
+	// Workflow-specific run criteria and step actions/conditions
+	RunCriteria    types.List `tfsdk:"run_criteria"`
+	StepActions    types.List `tfsdk:"step_actions"`
+	StepConditions types.List `tfsdk:"step_conditions"`
+
 	// Business services
 	OpswiseGroups types.List `tfsdk:"opswise_groups"`
 }
@@ -100,7 +110,23 @@ type TaskWorkflowAPIModel struct {
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
+	HoldResources    bool                          `json:"holdResources,omitempty"`
+	ExclusiveTasks   []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
+	VirtualResources []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
+
+	RunCriteria    []TaskRunCriterionAPIModel  `json:"runCriteria,omitempty"`
+	StepActions    []TaskStepActionAPIModel    `json:"stepActions,omitempty"`
+	StepConditions []TaskStepConditionAPIModel `json:"stepConditions,omitempty"`
+
 	OpswiseGroups []string `json:"opswiseGroups,omitempty"`
+
+	// WorkflowVertices is a pass-through only: the API validates runCriteria/
+	// stepActions/stepConditions task references against the workflowVertices
+	// array included in the SAME request (not persisted state), so the
+	// current vertices must be fetched and echoed back whenever those fields
+	// are set. This provider does not otherwise manage vertices here (see
+	// the separate stonebranch_workflow_vertex resource).
+	WorkflowVertices json.RawMessage `json:"workflowVertices,omitempty"`
 }
 
 func (r *TaskWorkflowResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -227,6 +253,20 @@ func (r *TaskWorkflowResource) Schema(ctx context.Context, req resource.SchemaRe
 			// Variables
 			"variables": TaskVariablesSchema(),
 
+			// Resource management
+			"hold_resources": schema.BoolAttribute{
+				MarkdownDescription: "Whether to hold the task's virtual resources for the duration of any retries. Note: the Stonebranch API does not appear to persist this setting for workflow tasks; it is included here for schema consistency with other task types.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"exclusive_tasks":   TaskExclusiveTasksSchema(),
+			"virtual_resources": TaskVirtualResourcesSchema(),
+
+			// Workflow-specific run criteria and step actions/conditions
+			"run_criteria":    TaskRunCriteriaSchema(),
+			"step_actions":    TaskStepActionsSchema(),
+			"step_conditions": TaskStepConditionsSchema(),
+
 			// Business services
 			"opswise_groups": schema.ListAttribute{
 				MarkdownDescription: "List of business service names this workflow belongs to.",
@@ -341,6 +381,22 @@ func (r *TaskWorkflowResource) Update(ctx context.Context, req resource.UpdateRe
 	// Build API model
 	apiModel := r.toAPIModel(ctx, &data)
 
+	// The API validates runCriteria/stepActions/stepConditions task references
+	// against the workflowVertices array included in the same request rather
+	// than against persisted state, so fetch and echo back the task's current
+	// vertices whenever any of those fields are set.
+	if taskWorkflowHasCriteriaFields(&data) {
+		vertices, err := r.fetchWorkflowVertices(ctx, data.Name.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Fetching Workflow Vertices",
+				fmt.Sprintf("Could not fetch current vertices for workflow task %s: %s", data.Name.ValueString(), err),
+			)
+			return
+		}
+		apiModel.WorkflowVertices = vertices
+	}
+
 	// Update the task
 	_, err := r.client.Put(ctx, "/resources/task", apiModel)
 	if err != nil {
@@ -414,6 +470,36 @@ func (r *TaskWorkflowResource) readTask(ctx context.Context, data *TaskWorkflowR
 	return nil
 }
 
+// taskWorkflowHasCriteriaFields reports whether any of the run_criteria,
+// step_actions, or step_conditions fields are set with at least one entry.
+func taskWorkflowHasCriteriaFields(data *TaskWorkflowResourceModel) bool {
+	hasElements := func(list types.List) bool {
+		return !list.IsNull() && !list.IsUnknown() && len(list.Elements()) > 0
+	}
+	return hasElements(data.RunCriteria) || hasElements(data.StepActions) || hasElements(data.StepConditions)
+}
+
+// fetchWorkflowVertices fetches the raw workflowVertices JSON for the named
+// workflow task, for pass-through into an update payload that also sets
+// run_criteria/step_actions/step_conditions.
+func (r *TaskWorkflowResource) fetchWorkflowVertices(ctx context.Context, name string) (json.RawMessage, error) {
+	query := url.Values{}
+	query.Set("taskname", name)
+
+	respBody, err := r.client.Get(ctx, "/resources/task", query)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapper struct {
+		WorkflowVertices json.RawMessage `json:"workflowVertices,omitempty"`
+	}
+	if err := json.Unmarshal(respBody, &wrapper); err != nil {
+		return nil, fmt.Errorf("failed to parse workflow vertices: %w", err)
+	}
+	return wrapper.WorkflowVertices, nil
+}
+
 // toAPIModel converts the Terraform model to an API model.
 func (r *TaskWorkflowResource) toAPIModel(ctx context.Context, data *TaskWorkflowResourceModel) *TaskWorkflowAPIModel {
 	model := &TaskWorkflowAPIModel{
@@ -456,6 +542,18 @@ func (r *TaskWorkflowResource) toAPIModel(ctx context.Context, data *TaskWorkflo
 
 	// Handle variables
 	model.Variables = TaskVariablesToAPI(ctx, data.Variables)
+
+	// Handle resource management fields
+	if !data.HoldResources.IsNull() && !data.HoldResources.IsUnknown() {
+		model.HoldResources = data.HoldResources.ValueBool()
+	}
+	model.ExclusiveTasks = TaskExclusiveTasksToAPI(ctx, data.ExclusiveTasks)
+	model.VirtualResources = TaskVirtualResourcesToAPI(ctx, data.VirtualResources)
+
+	// Handle workflow-specific run criteria and step actions/conditions
+	model.RunCriteria = TaskRunCriteriaToAPI(ctx, data.RunCriteria)
+	model.StepActions = TaskStepActionsToAPI(ctx, data.StepActions)
+	model.StepConditions = TaskStepConditionsToAPI(ctx, data.StepConditions)
 
 	// Handle opswise_groups list
 	if !data.OpswiseGroups.IsNull() && !data.OpswiseGroups.IsUnknown() {
@@ -501,6 +599,16 @@ func (r *TaskWorkflowResource) fromAPIModel(ctx context.Context, apiModel *TaskW
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+
+	// Handle resource management fields
+	data.HoldResources = types.BoolValue(apiModel.HoldResources)
+	data.ExclusiveTasks = TaskExclusiveTasksFromAPI(apiModel.ExclusiveTasks)
+	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
+
+	// Handle workflow-specific run criteria and step actions/conditions
+	data.RunCriteria = TaskRunCriteriaFromAPI(apiModel.RunCriteria)
+	data.StepActions = TaskStepActionsFromAPI(apiModel.StepActions)
+	data.StepConditions = TaskStepConditionsFromAPI(apiModel.StepConditions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

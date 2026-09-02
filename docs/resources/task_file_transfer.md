@@ -92,8 +92,10 @@ resource "stonebranch_credential" "sftp" {
 - `credentials` (String) Name of the credentials to use for task execution.
 - `credentials_var` (String) Variable containing the credentials name.
 - `encrypt` (String) Encryption setting for the transfer.
+- `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
 - `exit_code_processing` (String) How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.
 - `exit_codes` (String) Exit codes that indicate success (e.g., '0' or '0,1,2').
+- `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `local_filename` (String) Path to the file on the local system.
 - `opswise_groups` (List of String) List of business service names this task belongs to.
 - `remote_credentials` (String) Name of the credentials to use for the remote server.
@@ -106,11 +108,24 @@ resource "stonebranch_credential" "sftp" {
 - `transfer_mode` (String) Transfer mode: 'ASCII' or 'Binary'.
 - `use_regex` (Boolean) Whether to use regex for filename matching.
 - `variables` (Attributes List) List of task variables. These variables are scoped to the task and can be referenced using `${variable_name}` syntax. (see [below for nested schema](#nestedatt--variables))
+- `virtual_resources` (Attributes List) List of virtual resources consumed by this task during execution. (see [below for nested schema](#nestedatt--virtual_resources))
 
 ### Read-Only
 
 - `sys_id` (String) System ID of the task (assigned by StoneBranch).
 - `version` (Number) Version number of the task (for optimistic locking).
+
+<a id="nestedatt--exclusive_tasks"></a>
+### Nested Schema for `exclusive_tasks`
+
+Required:
+
+- `task` (String) Name of the task that this task is mutually exclusive with.
+
+Optional:
+
+- `type` (String) Type of the exclusive-task relationship. Defaults to 'Direct' when not specified.
+
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
@@ -123,3 +138,13 @@ Optional:
 
 - `description` (String) Description of the variable.
 - `value` (String) Value of the variable.
+
+
+<a id="nestedatt--virtual_resources"></a>
+### Nested Schema for `virtual_resources`
+
+Optional:
+
+- `amount` (Number) Amount of the virtual resource consumed by this task.
+- `resource` (String) Name of the virtual resource consumed (see `stonebranch_virtual_resource`).
+- `resource_var` (String) Variable containing the virtual resource name.

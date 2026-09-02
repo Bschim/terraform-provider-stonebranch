@@ -98,6 +98,8 @@ resource "stonebranch_task_timer" "configurable_delay" {
 
 ### Optional
 
+- `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
+- `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `opswise_groups` (List of String) List of business service names this task belongs to.
 - `sleep_day_constraint` (String) Day constraint for time-based delays. Valid values: `None`, `Same Day`, `Next Day`, `Next Business Day`, `Next Non-business Day`, `Sunday`, `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`. Defaults to `None`.
 - `sleep_duration` (String) Duration to wait in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Required when `sleep_type` is `Duration`. Example: `00:00:00:30` for 30 seconds, `00:01:30:00` for 1 hour 30 minutes.
@@ -105,11 +107,24 @@ resource "stonebranch_task_timer" "configurable_delay" {
 - `sleep_type` (String) Type of timer delay. Valid values: `Duration` (wait for a duration), `Time` (wait until a specific time), `Relative Time` (wait until a time relative to task start). Defaults to `Duration`.
 - `summary` (String) Summary/description of the task.
 - `variables` (Attributes List) List of task variables. These variables are scoped to the task and can be referenced using `${variable_name}` syntax. (see [below for nested schema](#nestedatt--variables))
+- `virtual_resources` (Attributes List) List of virtual resources consumed by this task during execution. (see [below for nested schema](#nestedatt--virtual_resources))
 
 ### Read-Only
 
 - `sys_id` (String) System ID of the task (assigned by StoneBranch).
 - `version` (Number) Version number of the task (for optimistic locking).
+
+<a id="nestedatt--exclusive_tasks"></a>
+### Nested Schema for `exclusive_tasks`
+
+Required:
+
+- `task` (String) Name of the task that this task is mutually exclusive with.
+
+Optional:
+
+- `type` (String) Type of the exclusive-task relationship. Defaults to 'Direct' when not specified.
+
 
 <a id="nestedatt--variables"></a>
 ### Nested Schema for `variables`
@@ -122,3 +137,13 @@ Optional:
 
 - `description` (String) Description of the variable.
 - `value` (String) Value of the variable.
+
+
+<a id="nestedatt--virtual_resources"></a>
+### Nested Schema for `virtual_resources`
+
+Optional:
+
+- `amount` (Number) Amount of the virtual resource consumed by this task.
+- `resource` (String) Name of the virtual resource consumed (see `stonebranch_virtual_resource`).
+- `resource_var` (String) Variable containing the virtual resource name.
