@@ -76,6 +76,22 @@ resource "stonebranch_calendar" "weekend" {
   first_day_of_week = "Sunday"
 }
 
+# Calendar with custom-day exceptions (holidays)
+resource "stonebranch_custom_day" "new_years" {
+  name  = "tf-example-custom-day-new-years"
+  ctype = "Single Date"
+  date  = "2027-01-01"
+}
+
+resource "stonebranch_calendar" "with_holidays" {
+  name              = "tf-example-calendar-with-holidays"
+  comments          = "Business calendar with holiday exceptions"
+  business_days     = "Monday,Tuesday,Wednesday,Thursday,Friday"
+  first_day_of_week = "Monday"
+
+  custom_days = [stonebranch_custom_day.new_years.name]
+}
+
 # Use calendar in a time trigger
 resource "stonebranch_trigger_time" "daily_with_calendar" {
   name        = "tf-example-trigger-with-calendar"
