@@ -19,8 +19,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TaskTimerResource{}
-	_ resource.ResourceWithImportState = &TaskTimerResource{}
+	_ resource.Resource                   = &TaskTimerResource{}
+	_ resource.ResourceWithImportState    = &TaskTimerResource{}
+	_ resource.ResourceWithValidateConfig = &TaskTimerResource{}
 )
 
 func NewTaskTimerResource() resource.Resource {
@@ -44,6 +45,7 @@ type TaskTimerResourceModel struct {
 
 	// Timer configuration
 	SleepType          types.String `tfsdk:"sleep_type"`
+	SleepAmount        types.String `tfsdk:"sleep_amount"`
 	SleepDuration      types.String `tfsdk:"sleep_duration"`
 	SleepTime          types.String `tfsdk:"sleep_time"`
 	SleepDayConstraint types.String `tfsdk:"sleep_day_constraint"`
@@ -73,6 +75,7 @@ type TaskTimerAPIModel struct {
 
 	// Timer configuration
 	SleepType          string `json:"sleepType,omitempty"`
+	SleepAmount        string `json:"sleepAmount,omitempty"`
 	SleepDuration      string `json:"sleepDuration,omitempty"`
 	SleepTime          string `json:"sleepTime,omitempty"`
 	SleepDayConstraint string `json:"sleepDayConstraint,omitempty"`
@@ -122,7 +125,12 @@ func (r *TaskTimerResource) Schema(ctx context.Context, req resource.SchemaReque
 
 			// Timer configuration
 			"sleep_type": schema.StringAttribute{
-				MarkdownDescription: "Type of timer delay. Valid values: `Duration` (wait for a duration), `Time` (wait until a specific time), `Relative Time` (wait until a time relative to task start). Defaults to `Duration`.",
+				MarkdownDescription: "Type of timer delay. Valid values: `Duration` (wait for a duration), `Seconds` (wait for a number of seconds), `Time` (wait until a specific time), `Relative Time` (wait until a time relative to task start). Defaults to `Duration`.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"sleep_amount": schema.StringAttribute{
+				MarkdownDescription: "Number of seconds to wait. Required when `sleep_type` is `Seconds`. Example: `30`.",
 				Optional:            true,
 				Computed:            true,
 			},
@@ -164,6 +172,36 @@ func (r *TaskTimerResource) Schema(ctx context.Context, req resource.SchemaReque
 				ElementType:         types.StringType,
 			},
 		},
+	}
+}
+
+func (r *TaskTimerResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data TaskTimerResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If sleep_type is unknown (e.g. computed from another resource),
+	// defer this check to the server rather than failing the plan early.
+	if data.SleepType.IsUnknown() {
+		return
+	}
+
+	if data.SleepType.ValueString() == "Seconds" {
+		if isSet(data.SleepAmount) {
+			return
+		}
+		// Deferred if sleep_amount is unknown.
+		if data.SleepAmount.IsUnknown() {
+			return
+		}
+
+		resp.Diagnostics.AddAttributeError(
+			path.Root("sleep_amount"),
+			"Missing Required Field",
+			`"sleep_amount" must be set when "sleep_type" is "Seconds".`,
+		)
 	}
 }
 
@@ -354,6 +392,7 @@ func (r *TaskTimerResource) toAPIModel(ctx context.Context, data *TaskTimerResou
 
 		// Timer configuration
 		SleepType:          data.SleepType.ValueString(),
+		SleepAmount:        data.SleepAmount.ValueString(),
 		SleepDuration:      data.SleepDuration.ValueString(),
 		SleepTime:          data.SleepTime.ValueString(),
 		SleepDayConstraint: data.SleepDayConstraint.ValueString(),
@@ -394,6 +433,7 @@ func (r *TaskTimerResource) fromAPIModel(ctx context.Context, apiModel *TaskTime
 
 	// Timer configuration - always returned by API
 	data.SleepType = types.StringValue(apiModel.SleepType)
+	data.SleepAmount = types.StringValue(apiModel.SleepAmount)
 	data.SleepDuration = types.StringValue(apiModel.SleepDuration)
 	data.SleepTime = types.StringValue(apiModel.SleepTime)
 	data.SleepDayConstraint = types.StringValue(apiModel.SleepDayConstraint)
