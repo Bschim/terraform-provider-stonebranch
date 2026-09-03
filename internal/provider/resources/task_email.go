@@ -20,8 +20,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TaskEmailResource{}
-	_ resource.ResourceWithImportState = &TaskEmailResource{}
+	_ resource.Resource                   = &TaskEmailResource{}
+	_ resource.ResourceWithImportState    = &TaskEmailResource{}
+	_ resource.ResourceWithValidateConfig = &TaskEmailResource{}
 )
 
 func NewTaskEmailResource() resource.Resource {
@@ -304,6 +305,30 @@ func (r *TaskEmailResource) Schema(ctx context.Context, req resource.SchemaReque
 			},
 		},
 	}
+}
+
+func (r *TaskEmailResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data TaskEmailResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if isSet(data.EmailConnection) || isSet(data.EmailConnectionVar) || isSet(data.Template) || isSet(data.TemplateVar) {
+		return
+	}
+	// If any of the four are unknown (e.g. computed from another resource),
+	// defer this check to the server rather than failing the plan early.
+	if data.EmailConnection.IsUnknown() || data.EmailConnectionVar.IsUnknown() ||
+		data.Template.IsUnknown() || data.TemplateVar.IsUnknown() {
+		return
+	}
+
+	resp.Diagnostics.AddAttributeError(
+		path.Root("email_connection"),
+		"Missing Required Field",
+		`At least one of "email_connection", "email_connection_var", "template", or "template_var" must be set.`,
+	)
 }
 
 func (r *TaskEmailResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
