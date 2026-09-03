@@ -130,6 +130,14 @@ func notEmpty(v interface{}) bool {
 		return len(val) > 0
 	case bool:
 		return true // booleans are always "not empty" for template purposes
+	case float64:
+		return val != 0 // JSON numbers decode as float64 in map[string]interface{}
+	case float32:
+		return val != 0
+	case int:
+		return val != 0
+	case int64:
+		return val != 0
 	default:
 		return false
 	}
@@ -584,6 +592,12 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .agentCluster}}
   agent_cluster = "{{quote .agentCluster}}"
 {{- end}}
+{{- if notEmpty .agentVar}}
+  agent_var = "{{quote .agentVar}}"
+{{- end}}
+{{- if notEmpty .agentClusterVar}}
+  agent_cluster_var = "{{quote .agentClusterVar}}"
+{{- end}}
 {{- if notEmpty .fileName}}
   file_name = "{{quote .fileName}}"
 {{- end}}
@@ -691,6 +705,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .sleepType}}
   sleep_type = "{{quote .sleepType}}"
+{{- end}}
+{{- if notEmpty .sleepAmount}}
+  sleep_amount = "{{quote .sleepAmount}}"
 {{- end}}
 {{- if notEmpty .sleepDuration}}
   sleep_duration = "{{quote .sleepDuration}}"
