@@ -2,9 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -83,23 +81,46 @@ func listResourceTypes() error {
 	return nil
 }
 
-func listAllTasks() error {
+// listByCategory lists every resource across all resource types belonging
+// to the given category, calling DataSource.List once per type and
+// concatenating the results. When an item's Type field comes back empty,
+// it defaults to defaultType(rt) - this preserves parity with the old
+// combined-endpoint behavior where "type" was always populated.
+func listByCategory(categoryName string, defaultType func(rt *generator.ResourceType) string) ([]generator.ResourceItem, error) {
 	ctx := context.Background()
-	client := GetClient()
+	ds := GetDataSource()
 
-	query := url.Values{}
-	if listFilter != "" {
-		query.Set("taskname", listFilter)
+	categories := generator.GetResourceCategories()
+
+	var all []generator.ResourceItem
+	for _, cat := range categories {
+		if cat.Name != categoryName {
+			continue
+		}
+
+		for _, rt := range cat.Types {
+			items, err := ds.List(ctx, rt, listFilter)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list %s: %w", rt.CLIName, err)
+			}
+			for i := range items {
+				if items[i].Type == "" {
+					items[i].Type = defaultType(rt)
+				}
+			}
+			all = append(all, items...)
+		}
 	}
 
-	respBody, err := client.Get(ctx, "/resources/task/listadv", query)
+	return all, nil
+}
+
+func listAllTasks() error {
+	tasks, err := listByCategory("Tasks", func(rt *generator.ResourceType) string {
+		return rt.APITypeValue
+	})
 	if err != nil {
 		return fmt.Errorf("failed to list tasks: %w", err)
-	}
-
-	var tasks []ResourceItem
-	if err := json.Unmarshal(respBody, &tasks); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	printResourceTable("Tasks", tasks, true)
@@ -107,22 +128,11 @@ func listAllTasks() error {
 }
 
 func listAllTriggers() error {
-	ctx := context.Background()
-	client := GetClient()
-
-	query := url.Values{}
-	if listFilter != "" {
-		query.Set("triggername", listFilter)
-	}
-
-	respBody, err := client.Get(ctx, "/resources/trigger/listadv", query)
+	triggers, err := listByCategory("Triggers", func(rt *generator.ResourceType) string {
+		return rt.APITypeValue
+	})
 	if err != nil {
 		return fmt.Errorf("failed to list triggers: %w", err)
-	}
-
-	var triggers []ResourceItem
-	if err := json.Unmarshal(respBody, &triggers); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	printResourceTable("Triggers", triggers, true)
@@ -130,38 +140,11 @@ func listAllTriggers() error {
 }
 
 func listAllConnections() error {
-	ctx := context.Background()
-	client := GetClient()
-
-	var allConnections []ResourceItem
-
-	// Database connections
-	respBody, err := client.Get(ctx, "/resources/databaseconnection/list", nil)
-	if err == nil {
-		var dbConns []ResourceItem
-		if json.Unmarshal(respBody, &dbConns) == nil {
-			for i := range dbConns {
-				dbConns[i].Type = "database_connection"
-			}
-			allConnections = append(allConnections, dbConns...)
-		}
-	}
-
-	// Email connections
-	respBody, err = client.Get(ctx, "/resources/emailconnection/list", nil)
-	if err == nil {
-		var emailConns []ResourceItem
-		if json.Unmarshal(respBody, &emailConns) == nil {
-			for i := range emailConns {
-				emailConns[i].Type = "email_connection"
-			}
-			allConnections = append(allConnections, emailConns...)
-		}
-	}
-
-	// Filter if needed
-	if listFilter != "" {
-		allConnections = filterByName(allConnections, listFilter)
+	allConnections, err := listByCategory("Connections", func(rt *generator.ResourceType) string {
+		return rt.CLIName
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list connections: %w", err)
 	}
 
 	printResourceTable("Connections", allConnections, true)
@@ -175,62 +158,14 @@ func listSpecificType(resourceType string) error {
 	}
 
 	ctx := context.Background()
-	client := GetClient()
+	ds := GetDataSource()
 
-	query := url.Values{}
-	// Don't filter by type in API - filter locally instead
-	if listFilter != "" {
-		query.Set(rt.NameQueryParam, listFilter)
-	}
-
-	respBody, err := client.Get(ctx, rt.ListEndpoint, query)
+	items, err := ds.List(ctx, rt, listFilter)
 	if err != nil {
 		return fmt.Errorf("failed to list %s: %w", resourceType, err)
 	}
 
-	// Parse as raw JSON to handle different field names
-	var rawItems []map[string]interface{}
-	if err := json.Unmarshal(respBody, &rawItems); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Determine which field contains the name
-	nameField := rt.NameField
-	if nameField == "" {
-		nameField = "name"
-	}
-
-	// Convert to ResourceItem
-	var items []ResourceItem
-	for _, raw := range rawItems {
-		item := ResourceItem{}
-		if name, ok := raw[nameField].(string); ok {
-			item.Name = name
-		}
-		if t, ok := raw["type"].(string); ok {
-			item.Type = t
-		}
-		if summary, ok := raw["summary"].(string); ok {
-			item.Summary = summary
-		}
-		if sysId, ok := raw["sysId"].(string); ok {
-			item.SysId = sysId
-		}
-		items = append(items, item)
-	}
-
-	// Filter by type locally if needed
-	if rt.APITypeValue != "" {
-		var filtered []ResourceItem
-		for _, item := range items {
-			if item.Type == rt.APITypeValue {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
-	}
-
-	// Set the type for display if not returned by API
+	// Set the type for display if not returned by the data source
 	for i := range items {
 		if items[i].Type == "" {
 			items[i].Type = resourceType
@@ -241,15 +176,7 @@ func listSpecificType(resourceType string) error {
 	return nil
 }
 
-// ResourceItem represents a generic resource from the API.
-type ResourceItem struct {
-	SysId   string `json:"sysId"`
-	Name    string `json:"name"`
-	Type    string `json:"type,omitempty"`
-	Summary string `json:"summary,omitempty"`
-}
-
-func printResourceTable(title string, items []ResourceItem, showType bool) {
+func printResourceTable(title string, items []generator.ResourceItem, showType bool) {
 	if len(items) == 0 {
 		fmt.Printf("No %s found.\n", strings.ToLower(title))
 		return
@@ -287,31 +214,4 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
-}
-
-func filterByName(items []ResourceItem, pattern string) []ResourceItem {
-	// Simple wildcard matching (only supports * at beginning and/or end)
-	pattern = strings.ToLower(pattern)
-	prefix := strings.HasPrefix(pattern, "*")
-	suffix := strings.HasSuffix(pattern, "*")
-	pattern = strings.Trim(pattern, "*")
-
-	var result []ResourceItem
-	for _, item := range items {
-		name := strings.ToLower(item.Name)
-		match := false
-		if prefix && suffix {
-			match = strings.Contains(name, pattern)
-		} else if prefix {
-			match = strings.HasSuffix(name, pattern)
-		} else if suffix {
-			match = strings.HasPrefix(name, pattern)
-		} else {
-			match = name == pattern
-		}
-		if match {
-			result = append(result, item)
-		}
-	}
-	return result
 }

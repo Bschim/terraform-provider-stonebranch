@@ -3,9 +3,7 @@ package generator
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,30 +11,35 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
-
-	"github.com/OptionMetrics/terraform-provider-stonebranch/internal/client"
 )
 
 // Generator handles exporting StoneBranch resources to Terraform HCL.
 type Generator struct {
-	client       *client.Client
+	dataSource   DataSource
 	output       string
 	noDeps       bool
-	exported     map[string]bool   // Track exported resources to avoid duplicates
-	nameCounters map[string]int    // Counters for generating sequential resource names
-	hclBuffer    *bytes.Buffer     // Single buffer for all output
-	nameMap      map[string]string // Maps resource key to generated terraform name
+	withImports  bool
+	exported     map[string]bool // Track exported resources to avoid duplicates
+	nameCounters map[string]int  // Counters for generating sequential resource names
+	// buffers holds one *bytes.Buffer per output filename (e.g.
+	// "tasks_unix.tf", "triggers.tf", "scripts.tf", ...), populated lazily
+	// via bufferFor. Replaces the old single hclBuffer.
+	buffers map[string]*bytes.Buffer
+	nameMap map[string]string // Maps resource key to generated terraform name
 }
 
-// NewGenerator creates a new Generator.
-func NewGenerator(client *client.Client, output string, noDeps bool) *Generator {
+// NewGenerator creates a new Generator backed by the given DataSource
+// (either an APIDataSource wrapping a live UAC connection, or a
+// LocalDataSource reading from a local export tree).
+func NewGenerator(ds DataSource, output string, noDeps, withImports bool) *Generator {
 	return &Generator{
-		client:       client,
+		dataSource:   ds,
 		output:       output,
 		noDeps:       noDeps,
+		withImports:  withImports,
 		exported:     make(map[string]bool),
 		nameCounters: make(map[string]int),
-		hclBuffer:    &bytes.Buffer{},
+		buffers:      make(map[string]*bytes.Buffer),
 		nameMap:      make(map[string]string),
 	}
 }
@@ -70,7 +73,7 @@ func (g *Generator) ExportResource(ctx context.Context, resourceType, name strin
 	}
 
 	// Fetch the resource
-	data, err := g.fetchResource(ctx, rt, name)
+	data, err := g.dataSource.Fetch(ctx, rt.APIEndpoint, rt.NameQueryParam, name)
 	if err != nil {
 		return err
 	}
@@ -93,9 +96,11 @@ func (g *Generator) ExportResource(ctx context.Context, resourceType, name strin
 	g.markExported(resourceType, name)
 
 	// Append to buffer with comment showing original name
-	g.hclBuffer.WriteString(fmt.Sprintf("# %s: %s\n", resourceType, name))
-	g.hclBuffer.WriteString(hcl)
-	g.hclBuffer.WriteString("\n")
+	buf := g.bufferFor(rt)
+	buf.WriteString(fmt.Sprintf("# %s: %s\n", resourceType, name))
+	buf.WriteString(hcl)
+	buf.WriteString("\n")
+	g.writeImportBlock(rt, tfName, name)
 
 	return nil
 }
@@ -107,7 +112,7 @@ func (g *Generator) ExportAll(ctx context.Context, resourceType, filter string) 
 		return fmt.Errorf("unknown resource type: %s", resourceType)
 	}
 
-	items, err := g.listResources(ctx, rt, filter)
+	items, err := g.dataSource.List(ctx, rt, filter)
 	if err != nil {
 		return err
 	}
@@ -141,37 +146,39 @@ func (g *Generator) ExportAll(ctx context.Context, resourceType, filter string) 
 
 // ExportTasks exports tasks matching a filter pattern.
 // Workflows will include their contained tasks, vertices, and edges.
+//
+// NOTE: this method is not currently called from cli/export.go (which uses
+// ExportAll/exportWorkflowComplete/ExportResource for its category/single
+// export paths) but is kept and converted to use the DataSource for
+// consistency with the rest of the Generator.
 func (g *Generator) ExportTasks(ctx context.Context, filter string) error {
-	// List all tasks matching the filter (API supports * and ? wildcards)
-	query := url.Values{}
-	if filter != "" {
-		query.Set("taskname", filter)
-	}
-
-	respBody, err := g.client.Get(ctx, "/resources/task/listadv", query)
+	// List all tasks matching the filter (any subtype), using a synthetic
+	// ResourceType that mirrors the raw /resources/task/listadv listing
+	// this method has always performed (no APITypeValue, so DataSource.List
+	// applies no type filtering and returns every task type, matching the
+	// old behavior exactly).
+	items, err := g.dataSource.List(ctx, &ResourceType{
+		ListEndpoint:   "/resources/task/listadv",
+		NameQueryParam: "taskname",
+		NameField:      "name",
+	}, filter)
 	if err != nil {
 		return fmt.Errorf("failed to list tasks: %w", err)
 	}
 
-	var rawItems []map[string]interface{}
-	if err := json.Unmarshal(respBody, &rawItems); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if len(rawItems) == 0 {
+	if len(items) == 0 {
 		fmt.Fprintf(os.Stderr, "No tasks found matching filter: %s\n", filter)
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Found %d tasks matching filter\n", len(rawItems))
+	fmt.Fprintf(os.Stderr, "Found %d tasks matching filter\n", len(items))
 
 	// Separate workflows from other tasks
-	var workflows []map[string]interface{}
-	var otherTasks []map[string]interface{}
+	var workflows []ResourceItem
+	var otherTasks []ResourceItem
 
-	for _, item := range rawItems {
-		taskType, _ := item["type"].(string)
-		if taskType == "taskWorkflow" {
+	for _, item := range items {
+		if item.Type == "taskWorkflow" {
 			workflows = append(workflows, item)
 		} else {
 			otherTasks = append(otherTasks, item)
@@ -180,35 +187,32 @@ func (g *Generator) ExportTasks(ctx context.Context, filter string) error {
 
 	// First, export workflows (with their tasks, vertices, edges)
 	for _, wf := range workflows {
-		name, _ := wf["name"].(string)
-		if name == "" {
+		if wf.Name == "" {
 			continue
 		}
-		if err := g.exportWorkflowComplete(ctx, name); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to export workflow %s: %v\n", name, err)
+		if err := g.exportWorkflowComplete(ctx, wf.Name); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to export workflow %s: %v\n", wf.Name, err)
 		}
 	}
 
 	// Then export other tasks (that weren't already exported as part of a workflow)
 	for _, task := range otherTasks {
-		name, _ := task["name"].(string)
-		taskType, _ := task["type"].(string)
-		if name == "" || taskType == "" {
+		if task.Name == "" || task.Type == "" {
 			continue
 		}
 
-		cliType, ok := APITypeToResourceType[taskType]
+		cliType, ok := APITypeToResourceType[task.Type]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Warning: unsupported task type %s for task %s\n", taskType, name)
+			fmt.Fprintf(os.Stderr, "Warning: unsupported task type %s for task %s\n", task.Type, task.Name)
 			continue
 		}
 
-		if g.isExported(cliType, name) {
+		if g.isExported(cliType, task.Name) {
 			continue
 		}
 
-		if err := g.ExportResource(ctx, cliType, name); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to export %s/%s: %v\n", cliType, name, err)
+		if err := g.ExportResource(ctx, cliType, task.Name); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to export %s/%s: %v\n", cliType, task.Name, err)
 		}
 	}
 
@@ -228,7 +232,7 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 	}
 
 	// Fetch the workflow task
-	data, err := g.fetchResource(ctx, rt, name)
+	data, err := g.dataSource.Fetch(ctx, rt.APIEndpoint, rt.NameQueryParam, name)
 	if err != nil {
 		return fmt.Errorf("failed to fetch workflow: %w", err)
 	}
@@ -248,16 +252,19 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 	// Mark workflow as exported
 	g.markExported("task_workflow", name)
 
-	// Write workflow section header
-	g.hclBuffer.WriteString(fmt.Sprintf("\n# ============================================================\n"))
-	g.hclBuffer.WriteString(fmt.Sprintf("# Workflow: %s\n", name))
-	g.hclBuffer.WriteString(fmt.Sprintf("# ============================================================\n\n"))
-	g.hclBuffer.WriteString(fmt.Sprintf("# task_workflow: %s\n", name))
-	g.hclBuffer.WriteString(workflowHCL)
-	g.hclBuffer.WriteString("\n")
+	// Write workflow section header (into the task_workflow file - vertices
+	// and edges below are routed into this same file, see bufferFor).
+	wfBuf := g.bufferFor(rt)
+	wfBuf.WriteString(fmt.Sprintf("\n# ============================================================\n"))
+	wfBuf.WriteString(fmt.Sprintf("# Workflow: %s\n", name))
+	wfBuf.WriteString(fmt.Sprintf("# ============================================================\n\n"))
+	wfBuf.WriteString(fmt.Sprintf("# task_workflow: %s\n", name))
+	wfBuf.WriteString(workflowHCL)
+	wfBuf.WriteString("\n")
+	g.writeImportBlock(rt, wfTfName, name)
 
 	// Fetch workflow vertices
-	vertices, err := g.fetchWorkflowVertices(ctx, name)
+	vertices, err := g.dataSource.FetchWorkflowVertices(ctx, name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to fetch workflow vertices for %s: %v\n", name, err)
 		return nil
@@ -267,8 +274,10 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 		return nil
 	}
 
-	// Export all tasks in the workflow
-	g.hclBuffer.WriteString("# --- Tasks in Workflow ---\n")
+	// Export all tasks in the workflow. Each task is written into its own
+	// resource-type file (e.g. tasks_unix.tf), not the workflow's file,
+	// since these are regular task resources, not workflow-only constructs.
+	wfBuf.WriteString("# --- Tasks in Workflow ---\n")
 	for _, v := range vertices {
 		taskName := v.Task.Value
 		if taskName == "" {
@@ -276,7 +285,7 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 		}
 
 		// Fetch the task
-		taskData, err := g.fetchResourceByName(ctx, "/resources/task", "taskname", taskName)
+		taskData, err := g.dataSource.FetchTaskByName(ctx, taskName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to fetch task %s: %v\n", taskName, err)
 			continue
@@ -314,15 +323,23 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 			continue
 		}
 
-		g.hclBuffer.WriteString(fmt.Sprintf("# %s: %s\n", cliType, taskName))
-		g.hclBuffer.WriteString(taskHCL)
-		g.hclBuffer.WriteString("\n")
+		taskBuf := g.bufferFor(taskRT)
+		taskBuf.WriteString(fmt.Sprintf("# %s: %s\n", cliType, taskName))
+		taskBuf.WriteString(taskHCL)
+		taskBuf.WriteString("\n")
+		g.writeImportBlock(taskRT, taskTfName, taskName)
 
 		g.markExported(cliType, taskName)
 	}
 
-	// Generate workflow vertices and track their terraform names
-	g.hclBuffer.WriteString("# --- Workflow Vertices ---\n")
+	// Generate workflow vertices and track their terraform names. Vertices
+	// only ever accompany a task_workflow export, so they're written into
+	// the same tasks_workflow.tf file as the workflow itself (see
+	// bufferFor's Category=="Workflow" case) rather than a separate file -
+	// this keeps a workflow's full definition (task + vertices + edges)
+	// readable in one place.
+	vertexRT := GetResourceType("workflow_vertex")
+	wfBuf.WriteString("# --- Workflow Vertices ---\n")
 	vertexTfNames := make(map[string]string) // Maps vertexId to terraform resource name
 	for _, v := range vertices {
 		taskName := v.Task.Value
@@ -332,22 +349,23 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 		vertexTfName, vertexHCL, err := g.generateWorkflowVertexHCLNew(name, wfTfName, v)
 		if err == nil {
 			vertexTfNames[v.VertexId] = vertexTfName
-			g.hclBuffer.WriteString(vertexHCL)
-			g.hclBuffer.WriteString("\n")
+			g.bufferFor(vertexRT).WriteString(vertexHCL)
+			g.bufferFor(vertexRT).WriteString("\n")
 		}
 	}
 
 	// Generate workflow edges
-	edges, err := g.fetchWorkflowEdges(ctx, name)
+	edgeRT := GetResourceType("workflow_edge")
+	edges, err := g.dataSource.FetchWorkflowEdges(ctx, name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to fetch workflow edges for %s: %v\n", name, err)
 	} else if len(edges) > 0 {
-		g.hclBuffer.WriteString("# --- Workflow Edges ---\n")
+		wfBuf.WriteString("# --- Workflow Edges ---\n")
 		for _, e := range edges {
 			edgeHCL, err := g.generateWorkflowEdgeHCLNew(name, wfTfName, e, vertices, vertexTfNames)
 			if err == nil {
-				g.hclBuffer.WriteString(edgeHCL)
-				g.hclBuffer.WriteString("\n")
+				g.bufferFor(edgeRT).WriteString(edgeHCL)
+				g.bufferFor(edgeRT).WriteString("\n")
 			}
 		}
 	}
@@ -367,7 +385,7 @@ func (g *Generator) ExportWorkflow(ctx context.Context, name string) error {
 	}
 
 	// Fetch workflow vertices
-	vertices, err := g.fetchWorkflowVertices(ctx, name)
+	vertices, err := g.dataSource.FetchWorkflowVertices(ctx, name)
 	if err != nil {
 		return fmt.Errorf("failed to fetch workflow vertices: %w", err)
 	}
@@ -380,7 +398,7 @@ func (g *Generator) ExportWorkflow(ctx context.Context, name string) error {
 		}
 
 		// Determine task type and export
-		taskData, err := g.fetchResourceByName(ctx, "/resources/task", "taskname", taskName)
+		taskData, err := g.dataSource.FetchTaskByName(ctx, taskName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to fetch task %s: %v\n", taskName, err)
 			continue
@@ -409,7 +427,7 @@ func (g *Generator) ExportWorkflow(ctx context.Context, name string) error {
 	}
 
 	// Fetch and generate workflow edges
-	edges, err := g.fetchWorkflowEdges(ctx, name)
+	edges, err := g.dataSource.FetchWorkflowEdges(ctx, name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to fetch workflow edges: %v\n", err)
 	} else {
@@ -424,112 +442,9 @@ func (g *Generator) ExportWorkflow(ctx context.Context, name string) error {
 	return nil
 }
 
-// Finalize writes the buffered output to file or stdout.
-func (g *Generator) Finalize() error {
-	if g.hclBuffer.Len() == 0 {
-		return nil
-	}
-
-	// Add header
-	header := "# Generated by sb2tf from StoneBranch Universal Controller\n\n"
-	content := header + g.hclBuffer.String()
-
-	if g.output == "" {
-		// Write to stdout
-		fmt.Print(content)
-		return nil
-	}
-
-	// Write to file
-	if err := os.MkdirAll(g.output, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	filename := filepath.Join(g.output, "main.tf")
-	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", filename, err)
-	}
-	fmt.Fprintf(os.Stderr, "Wrote %s\n", filename)
-
-	return nil
-}
-
-// fetchResource fetches a single resource from the API.
-func (g *Generator) fetchResource(ctx context.Context, rt *ResourceType, name string) (map[string]interface{}, error) {
-	return g.fetchResourceByName(ctx, rt.APIEndpoint, rt.NameQueryParam, name)
-}
-
-func (g *Generator) fetchResourceByName(ctx context.Context, endpoint, paramName, name string) (map[string]interface{}, error) {
-	query := url.Values{}
-	query.Set(paramName, name)
-
-	respBody, err := g.client.Get(ctx, endpoint, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch resource: %w", err)
-	}
-
-	var data map[string]interface{}
-	if err := json.Unmarshal(respBody, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return data, nil
-}
-
 // ListResources lists all resources of a given type (exported for CLI use).
 func (g *Generator) ListResources(ctx context.Context, rt *ResourceType, filter string) ([]ResourceItem, error) {
-	return g.listResources(ctx, rt, filter)
-}
-
-// listResources lists all resources of a given type.
-func (g *Generator) listResources(ctx context.Context, rt *ResourceType, filter string) ([]ResourceItem, error) {
-	query := url.Values{}
-	// Don't filter by type in API - filter locally instead
-	if filter != "" {
-		query.Set(rt.NameQueryParam, filter)
-	}
-
-	respBody, err := g.client.Get(ctx, rt.ListEndpoint, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list resources: %w", err)
-	}
-
-	// Parse as raw JSON to handle different field names
-	var rawItems []map[string]interface{}
-	if err := json.Unmarshal(respBody, &rawItems); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Convert to ResourceItem, handling custom name fields
-	nameField := rt.NameField
-	if nameField == "" {
-		nameField = "name"
-	}
-
-	var items []ResourceItem
-	for _, raw := range rawItems {
-		item := ResourceItem{}
-		if name, ok := raw[nameField].(string); ok {
-			item.Name = name
-		}
-		if t, ok := raw["type"].(string); ok {
-			item.Type = t
-		}
-		items = append(items, item)
-	}
-
-	// Filter by type locally if this resource type has a specific API type value
-	if rt.APITypeValue != "" {
-		var filtered []ResourceItem
-		for _, item := range items {
-			if item.Type == rt.APITypeValue {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
-	}
-
-	return items, nil
+	return g.dataSource.List(ctx, rt, filter)
 }
 
 // ResourceItem represents a resource in list responses.
@@ -539,6 +454,11 @@ type ResourceItem struct {
 	Task struct {
 		Value string `json:"value"`
 	} `json:"task,omitempty"`
+	// SysId and Summary are populated by DataSource.List implementations
+	// (APIDataSource and LocalDataSource) so that cli/list.go can unify onto
+	// this struct instead of maintaining its own separate ResourceItem type.
+	SysId   string `json:"sysId,omitempty"`
+	Summary string `json:"summary,omitempty"`
 }
 
 // exportDependencies exports resources that this resource depends on.
@@ -574,42 +494,6 @@ func (g *Generator) exportDependencies(ctx context.Context, rt *ResourceType, da
 	return nil
 }
 
-// fetchWorkflowVertices fetches all vertices for a workflow.
-func (g *Generator) fetchWorkflowVertices(ctx context.Context, workflowName string) ([]WorkflowVertex, error) {
-	query := url.Values{}
-	query.Set("workflowname", workflowName)
-
-	respBody, err := g.client.Get(ctx, "/resources/workflow/vertices", query)
-	if err != nil {
-		return nil, err
-	}
-
-	var vertices []WorkflowVertex
-	if err := json.Unmarshal(respBody, &vertices); err != nil {
-		return nil, err
-	}
-
-	return vertices, nil
-}
-
-// fetchWorkflowEdges fetches all edges for a workflow.
-func (g *Generator) fetchWorkflowEdges(ctx context.Context, workflowName string) ([]WorkflowEdge, error) {
-	query := url.Values{}
-	query.Set("workflowname", workflowName)
-
-	respBody, err := g.client.Get(ctx, "/resources/workflow/edges", query)
-	if err != nil {
-		return nil, err
-	}
-
-	var edges []WorkflowEdge
-	if err := json.Unmarshal(respBody, &edges); err != nil {
-		return nil, err
-	}
-
-	return edges, nil
-}
-
 // WorkflowVertex represents a vertex in the workflow.
 type WorkflowVertex struct {
 	Task struct {
@@ -630,6 +514,9 @@ type WorkflowEdge struct {
 		Value string `json:"value"`
 	} `json:"targetId"`
 	StraightEdge bool `json:"straightEdge,omitempty"`
+	Condition    struct {
+		Value string `json:"value"`
+	} `json:"condition,omitempty"`
 }
 
 // generateHCL generates HCL for a resource (legacy - uses sanitized names).
@@ -797,11 +684,13 @@ func (g *Generator) generateWorkflowEdgeHCLNew(workflowName, workflowTfName stri
 	return buf.String(), nil
 }
 
-// outputHCL appends HCL to the buffer (legacy compatibility).
+// outputHCL appends HCL to the buffer for the given resource type (legacy compatibility).
 func (g *Generator) outputHCL(resourceType, name, hcl string) error {
-	g.hclBuffer.WriteString(fmt.Sprintf("# %s: %s\n", resourceType, name))
-	g.hclBuffer.WriteString(hcl)
-	g.hclBuffer.WriteString("\n")
+	rt := GetResourceType(resourceType)
+	buf := g.bufferFor(rt)
+	buf.WriteString(fmt.Sprintf("# %s: %s\n", resourceType, name))
+	buf.WriteString(hcl)
+	buf.WriteString("\n")
 	return nil
 }
 
@@ -856,3 +745,163 @@ func (g *Generator) GetExportedResources() []string {
 // GetTemplate returns the template for a resource type.
 // This is a placeholder that will be implemented in templates.go
 var GetTemplate func(resourceType string) *template.Template
+
+// ---------------------------------------------------------------------------
+// Multi-file output
+// ---------------------------------------------------------------------------
+
+// otherFilenames maps CLINames outside the Tasks/Triggers/Workflow
+// categories to their output filename. Enumerated explicitly (rather than
+// derived via string pluralization) since the set of resource types is
+// small and fixed, and this keeps filenames predictable/readable.
+var otherFilenames = map[string]string{
+	"script":              "scripts.tf",
+	"variable":            "variables.tf",
+	"credential":          "credentials.tf",
+	"business_service":    "business_services.tf",
+	"agent_cluster":       "agent_clusters.tf",
+	"calendar":            "calendars.tf",
+	"customday":           "custom_days.tf",
+	"emailtemplate":       "email_templates.tf",
+	"universaltemplate":   "universal_templates.tf",
+	"virtualresource":     "virtual_resources.tf",
+	"database_connection": "database_connections.tf",
+	"email_connection":    "email_connections.tf",
+}
+
+// outputFilename maps a ResourceType to the .tf output filename its
+// generated HCL belongs in.
+//
+//   - Task types (Category "Tasks", CLIName prefixed "task_") each get their
+//     own file: tasks_<suffix>.tf, where <suffix> is the CLIName with the
+//     "task_" prefix stripped (task_unix -> tasks_unix.tf, task_workflow ->
+//     tasks_workflow.tf, task_universal -> tasks_universal.tf, ...).
+//   - Trigger types (Category "Triggers") all share a single triggers.tf.
+//   - workflow_vertex/workflow_edge (Category "Workflow") are routed into
+//     tasks_workflow.tf, the same file as the task_workflow resource they
+//     always accompany. They're never emitted on their own (only ever
+//     alongside a task_workflow export via exportWorkflowComplete), so
+//     giving them a separate workflows.tf file would just split a single
+//     workflow's definition (task + vertices + edges) across two files for
+//     no benefit - keeping them together in tasks_workflow.tf reads most
+//     naturally and matches how exportWorkflowComplete already interleaves
+//     them with header comments today.
+//   - Everything else (Connections/Other categories) gets an explicit,
+//     enumerated filename via otherFilenames.
+func outputFilename(rt *ResourceType) string {
+	switch rt.Category {
+	case "Tasks":
+		if strings.HasPrefix(rt.CLIName, "task_") {
+			return "tasks_" + strings.TrimPrefix(rt.CLIName, "task_") + ".tf"
+		}
+	case "Triggers":
+		return "triggers.tf"
+	case "Workflow":
+		return "tasks_workflow.tf"
+	}
+
+	if filename, ok := otherFilenames[rt.CLIName]; ok {
+		return filename
+	}
+
+	// Fallback for any resource type not covered above - shouldn't happen
+	// for any currently-registered type, but avoids silently dropping
+	// output if a new type is added without also updating otherFilenames.
+	return rt.CLIName + ".tf"
+}
+
+// bufferFor returns the buffer that HCL for the given ResourceType should be
+// written to, lazily creating it (and registering it in g.buffers under its
+// mapped filename) on first use.
+func (g *Generator) bufferFor(rt *ResourceType) *bytes.Buffer {
+	filename := outputFilename(rt)
+	if buf, ok := g.buffers[filename]; ok {
+		return buf
+	}
+	buf := &bytes.Buffer{}
+	g.buffers[filename] = buf
+	return buf
+}
+
+// writeImportBlock appends an `import {}` block to imports.tf for the given
+// resource, if --with-imports was requested and the resource type is
+// independently importable by name.
+func (g *Generator) writeImportBlock(rt *ResourceType, tfName, name string) {
+	if !g.withImports || !isImportable(rt) {
+		return
+	}
+	buf := g.importsBuffer()
+	buf.WriteString(fmt.Sprintf("import {\n  to = %s.%s\n  id = \"%s\"\n}\n\n",
+		rt.TerraformResource, tfName, quote(name)))
+}
+
+// workflow_vertex/workflow_edge have no standalone UAC name — not importable.
+func isImportable(rt *ResourceType) bool {
+	return rt.CLIName != "workflow_vertex" && rt.CLIName != "workflow_edge"
+}
+
+func (g *Generator) importsBuffer() *bytes.Buffer {
+	const filename = "imports.tf"
+	if buf, ok := g.buffers[filename]; ok {
+		return buf
+	}
+	buf := &bytes.Buffer{}
+	g.buffers[filename] = buf
+	return buf
+}
+
+// Finalize writes the buffered output (one section per output file) to
+// stdout or to individual files in g.output.
+func (g *Generator) Finalize() error {
+	type section struct {
+		filename string
+		buf      *bytes.Buffer
+	}
+
+	var sections []section
+	for filename, buf := range g.buffers {
+		if buf.Len() == 0 {
+			continue
+		}
+		sections = append(sections, section{filename: filename, buf: buf})
+	}
+
+	if len(sections) == 0 {
+		return nil
+	}
+
+	sort.Slice(sections, func(i, j int) bool { return sections[i].filename < sections[j].filename })
+
+	header := "# Generated by sb2tf from StoneBranch Universal Controller\n\n"
+
+	if g.output == "" {
+		// Write to stdout: concatenate every non-empty section, in a
+		// stable (filename-sorted) order, each preceded by a header
+		// comment identifying which file section it corresponds to -
+		// preserving today's single-buffer stdout behavior while now
+		// covering all sections.
+		for _, s := range sections {
+			fmt.Printf("# --- %s ---\n\n", s.filename)
+			fmt.Print(header)
+			fmt.Print(s.buf.String())
+			fmt.Println()
+		}
+		return nil
+	}
+
+	// Write to file: one .tf file per non-empty buffer.
+	if err := os.MkdirAll(g.output, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	for _, s := range sections {
+		content := header + s.buf.String()
+		filename := filepath.Join(g.output, s.filename)
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", filename, err)
+		}
+		fmt.Fprintf(os.Stderr, "Wrote %s\n", filename)
+	}
+
+	return nil
+}

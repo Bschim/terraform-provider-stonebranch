@@ -15,6 +15,7 @@ var (
 	exportFilter string
 	noDeps       bool
 	dryRun       bool
+	withImports  bool
 
 	exportCmd = &cobra.Command{
 		Use:   "export [resource-type] [name]",
@@ -52,15 +53,16 @@ func init() {
 	exportCmd.Flags().StringVar(&exportFilter, "filter", "", "Filter resources by name pattern (use with --all)")
 	exportCmd.Flags().BoolVar(&noDeps, "no-deps", false, "Skip exporting dependencies")
 	exportCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be exported without writing files")
+	exportCmd.Flags().BoolVar(&withImports, "with-imports", false, "Emit paired import {} blocks in imports.tf for each exported resource (only correct when applying against the same UAC instance you exported from)")
 }
 
 func runExport(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	client := GetClient()
+	ds := GetDataSource()
 	output := GetOutput()
 
 	// Create generator
-	gen := generator.NewGenerator(client, output, noDeps)
+	gen := generator.NewGenerator(ds, output, noDeps, withImports)
 
 	// Handle different argument combinations
 	if len(args) == 0 {
