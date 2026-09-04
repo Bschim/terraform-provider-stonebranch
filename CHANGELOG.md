@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed hardcoded default base URL; `base_url` or `STONEBRANCH_BASE_URL` is now required
 - Added CI/CD workflows, contributing guidelines, and community files
 
+### Fixed
+- `sb2tf`: fixed `notEmpty()` silently treating non-zero numeric fields as empty (JSON numbers decode as `float64`), which had dropped 14 fields (`stable_seconds`, `retry_maximum`, `retry_interval`, `smtp_port`, `limit`/`limit_amount`, `max_rows`, `timeout`, `time_interval`, `day`, `nth_amount`, `adjustment_amount`, `retention_duration_rt`, and universal-template field-slot attributes) from every export
+- `sb2tf`: fixed `taskFileMonitorTemplate` never exporting `agentVar`/`agentClusterVar`, and `taskTimerTemplate` never exporting `sleep_amount`
+- `sb2tf`: fixed the shared `actions` attribute (`system_operations`, `email_notifications`, `abort_actions`, `set_variable_actions`, `snmp_notifications`) being silently dropped from every task template's export
+- `sb2tf`: fixed the top-level `variables` attribute being silently dropped from every task/trigger template's export
+
 ## [0.4.0] - 2026-03-13
 
 ### Added
