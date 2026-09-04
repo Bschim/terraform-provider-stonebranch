@@ -66,6 +66,7 @@ func registerTemplate(name, tmpl string) {
 	// regardless of whether it invokes {{template "actions_block" ...}} -
 	// harmless for the ones that don't.
 	template.Must(t.Parse(actionsTemplateDefs))
+	template.Must(t.Parse(taskVariablesTemplateDefs))
 	templates[name] = template.Must(t.Parse(tmpl))
 }
 
@@ -564,6 +565,28 @@ const actionsTemplateDefs = `
 {{end}}
 `
 
+// taskVariablesTemplateDefs renders the task/trigger-level "variables"
+// attribute (distinct from actions.set_variable_actions and the nested
+// variables inside a system_operation_item - same JSON key, different
+// scope). See TaskVariablesSchema() in internal/provider/resources/helpers.go.
+const taskVariablesTemplateDefs = `
+{{define "task_variables_block"}}
+  variables = [
+{{- range .}}
+    {
+      name = "{{quote .name}}"
+{{- if notEmpty .value}}
+      value = "{{quote .value}}"
+{{- end}}
+{{- if notEmpty .description}}
+      description = "{{quote .description}}"
+{{- end}}
+    },
+{{- end}}
+  ]
+{{end}}
+`
+
 // ============================================================================
 // Simple Resources
 // ============================================================================
@@ -816,6 +839,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -876,6 +902,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -905,6 +934,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -951,6 +983,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -980,6 +1015,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -1031,6 +1069,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -1104,6 +1145,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1133,6 +1177,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -1173,6 +1220,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1205,6 +1255,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -1254,6 +1307,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1278,6 +1334,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -1348,6 +1407,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `
@@ -1544,6 +1606,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if hasActions .actions}}
 {{template "actions_block" .actions}}
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1584,6 +1649,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1623,6 +1691,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1647,6 +1718,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
+{{- end}}
 }
 `
 
@@ -1670,6 +1744,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if notEmpty .variables}}
+{{template "task_variables_block" .variables}}
 {{- end}}
 }
 `

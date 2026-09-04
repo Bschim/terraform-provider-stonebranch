@@ -173,3 +173,85 @@ func TestActionsEmptyOmitted(t *testing.T) {
 		}
 	})
 }
+
+// taskVariablesResourceTypes lists every resource type whose provider schema
+// includes TaskVariablesSchema() (see internal/provider/resources/helpers.go)
+// - i.e. every type that accepts a top-level "variables" attribute distinct
+// from actions.set_variable_actions.
+var taskVariablesResourceTypes = []string{
+	"task_unix", "task_windows", "task_sql", "task_email", "task_workflow",
+	"task_file_monitor", "task_file_transfer", "task_timer", "task_monitor",
+	"task_stored_procedure", "task_web_service", "task_universal_aws_s3",
+	"task_recurring", "task_universal",
+	"trigger_time", "trigger_cron", "trigger_file_monitor", "trigger_task_monitor",
+}
+
+// TestTaskVariablesRegression mirrors the real-world bug report: a
+// stonebranch_task_file_transfer task with top-level "variables" entries
+// (distinct from actions.set_variable_actions) that were silently dropped
+// from generated HCL because no template referenced the top-level
+// .variables field.
+func TestTaskVariablesRegression(t *testing.T) {
+	data := minimalTaskData("stonebranch_task_file_transfer", "task_file_transfer_001")
+	data["variables"] = []interface{}{
+		map[string]interface{}{
+			"name":  "EXAMPLE_USER_CREDS",
+			"value": "example-user-creds-value",
+		},
+		map[string]interface{}{
+			"name":        "EXAMPLE_USER_PWD",
+			"value":       "example-user-pwd-value",
+			"description": "example description",
+		},
+	}
+
+	out := renderTemplate(t, "task_file_transfer", data)
+
+	for _, want := range []string{
+		"variables = [",
+		`name = "EXAMPLE_USER_CREDS"`,
+		`value = "example-user-creds-value"`,
+		`name = "EXAMPLE_USER_PWD"`,
+		`description = "example description"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+}
+
+// TestTaskVariablesAllSupportedTemplates confirms every resource type that
+// exposes TaskVariablesSchema() in the provider schema also renders the
+// top-level variables block via sb2tf, catching the "Gotcha #1" class of bug
+// (a template silently drops a field it never references) for any of the
+// 18 affected templates.
+func TestTaskVariablesAllSupportedTemplates(t *testing.T) {
+	for _, rt := range taskVariablesResourceTypes {
+		t.Run(rt, func(t *testing.T) {
+			data := minimalTaskData("stonebranch_"+rt, rt+"_001")
+			data["variables"] = []interface{}{
+				map[string]interface{}{"name": "EXAMPLE_VAR", "value": "example-value"},
+			}
+
+			out := renderTemplate(t, rt, data)
+			if !strings.Contains(out, "variables = [") || !strings.Contains(out, `name = "EXAMPLE_VAR"`) {
+				t.Errorf("resource type %q did not render top-level variables block:\n%s", rt, out)
+			}
+		})
+	}
+}
+
+// TestTaskVariablesEmptyOmitted confirms an absent "variables" key does not
+// produce a stray `variables = [` block.
+func TestTaskVariablesEmptyOmitted(t *testing.T) {
+	for _, rt := range taskVariablesResourceTypes {
+		t.Run(rt, func(t *testing.T) {
+			data := minimalTaskData("stonebranch_"+rt, rt+"_001")
+
+			out := renderTemplate(t, rt, data)
+			if strings.Contains(out, "variables = [") {
+				t.Errorf("resource type %q rendered a variables block with no variables set:\n%s", rt, out)
+			}
+		})
+	}
+}
