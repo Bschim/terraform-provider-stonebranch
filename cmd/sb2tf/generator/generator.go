@@ -19,6 +19,7 @@ type Generator struct {
 	output       string
 	noDeps       bool
 	withImports  bool
+	force        bool
 	exported     map[string]bool // Track exported resources to avoid duplicates
 	nameCounters map[string]int  // Counters for generating sequential resource names
 	// buffers holds one *bytes.Buffer per output filename (e.g.
@@ -31,12 +32,13 @@ type Generator struct {
 // NewGenerator creates a new Generator backed by the given DataSource
 // (either an APIDataSource wrapping a live UAC connection, or a
 // LocalDataSource reading from a local export tree).
-func NewGenerator(ds DataSource, output string, noDeps, withImports bool) *Generator {
+func NewGenerator(ds DataSource, output string, noDeps, withImports, force bool) *Generator {
 	return &Generator{
 		dataSource:   ds,
 		output:       output,
 		noDeps:       noDeps,
 		withImports:  withImports,
+		force:        force,
 		exported:     make(map[string]bool),
 		nameCounters: make(map[string]int),
 		buffers:      make(map[string]*bytes.Buffer),
@@ -894,14 +896,52 @@ func (g *Generator) Finalize() error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	var skipped []string
+
 	for _, s := range sections {
 		content := header + s.buf.String()
 		filename := filepath.Join(g.output, s.filename)
+
+		if !g.force {
+			if existing, err := os.ReadFile(filename); err == nil {
+				oldCount := countResourceBlocks(string(existing))
+				newCount := countResourceBlocks(s.buf.String())
+				if newCount < oldCount {
+					fmt.Fprintf(os.Stderr,
+						"Refusing to overwrite %s: it currently has %d resource block(s), "+
+							"but this export would only write %d. This usually means dependency-following "+
+							"(e.g. exporting a workflow without --no-deps) only touched a subset of this "+
+							"file's resource type. Re-run with --no-deps for a standalone export of this "+
+							"type, or pass --force to overwrite anyway.\n",
+						filename, oldCount, newCount)
+					skipped = append(skipped, filename)
+					continue
+				}
+			}
+		}
+
 		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", filename, err)
 		}
 		fmt.Fprintf(os.Stderr, "Wrote %s\n", filename)
 	}
 
+	if len(skipped) > 0 {
+		return fmt.Errorf("refused to overwrite %d file(s) that would have shrunk: %s", len(skipped), strings.Join(skipped, ", "))
+	}
+
 	return nil
+}
+
+// countResourceBlocks counts top-level `resource "..." "..." {` block
+// declarations in HCL content, used by Finalize to detect a would-be
+// shrinking overwrite (see the --force check above).
+func countResourceBlocks(content string) int {
+	count := 0
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "resource \"") {
+			count++
+		}
+	}
+	return count
 }

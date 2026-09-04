@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sb2tf`: fixed `taskFileMonitorTemplate` never exporting `agentVar`/`agentClusterVar`, and `taskTimerTemplate` never exporting `sleep_amount`
 - `sb2tf`: fixed the shared `actions` attribute (`system_operations`, `email_notifications`, `abort_actions`, `set_variable_actions`, `snmp_notifications`) being silently dropped from every task template's export
 - `sb2tf`: fixed the top-level `variables` attribute being silently dropped from every task/trigger template's export
+- `sb2tf`: `export --all` with dependency-following enabled (the default) could silently overwrite a sibling per-type `.tf` file with only the dependency-referenced subset of that type (e.g. `export task_workflow --all` truncating `tasks_unix.tf` to just the tasks referenced by workflows), losing previously-exported resources with no warning; `Finalize()` now refuses to overwrite an output file with fewer resources than it already has unless `--force` is passed
 
 ## [0.4.0] - 2026-03-13
 

@@ -16,6 +16,7 @@ var (
 	noDeps       bool
 	dryRun       bool
 	withImports  bool
+	force        bool
 
 	exportCmd = &cobra.Command{
 		Use:   "export [resource-type] [name]",
@@ -54,6 +55,7 @@ func init() {
 	exportCmd.Flags().BoolVar(&noDeps, "no-deps", false, "Skip exporting dependencies")
 	exportCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be exported without writing files")
 	exportCmd.Flags().BoolVar(&withImports, "with-imports", false, "Emit paired import {} blocks in imports.tf for each exported resource (only correct when applying against the same UAC instance you exported from)")
+	exportCmd.Flags().BoolVar(&force, "force", false, "Overwrite output files even if this export would write fewer resources than the file currently has (bypasses the dependency-cascade shrink guard)")
 }
 
 func runExport(cmd *cobra.Command, args []string) error {
@@ -62,7 +64,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	output := GetOutput()
 
 	// Create generator
-	gen := generator.NewGenerator(ds, output, noDeps, withImports)
+	gen := generator.NewGenerator(ds, output, noDeps, withImports, force)
 
 	// Handle different argument combinations
 	if len(args) == 0 {
