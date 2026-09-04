@@ -72,6 +72,50 @@ func TestAccTaskFileTransferResource_withSummary(t *testing.T) {
 	})
 }
 
+func TestAccTaskFileTransferResource_udm(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test-udm")
+	resourceName := "stonebranch_task_file_transfer.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read
+			{
+				Config: testAccTaskFileTransferConfig_udm(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "server_type", "UDM"),
+					resource.TestCheckResourceAttr(resourceName, "primary_broker_choice", "Agent"),
+					resource.TestCheckResourceAttr(resourceName, "primary_broker", "udm-agent-01"),
+					resource.TestCheckResourceAttr(resourceName, "secondary_broker_choice", "Agent Cluster"),
+					resource.TestCheckResourceAttr(resourceName, "secondary_cluster_ref", "Opswise - Default Linux/Unix Cluster"),
+					resource.TestCheckResourceAttr(resourceName, "command", "GET"),
+					resource.TestCheckResourceAttr(resourceName, "udm_operation", "Copy"),
+					resource.TestCheckResourceAttr(resourceName, "format", "Binary"),
+					resource.TestCheckResourceAttr(resourceName, "form_or_script", "Form"),
+					resource.TestCheckResourceAttrSet(resourceName, "sys_id"),
+				),
+			},
+			// ImportState
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateId:                        rName,
+				ImportStateVerifyIdentifierAttribute: "name",
+			},
+			// Update
+			{
+				Config: testAccTaskFileTransferConfig_udmUpdated(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "remote_filename", "/remote/outgoing/report-updated.csv"),
+				),
+			},
+		},
+	})
+}
+
 // Test configuration helpers
 
 func testAccTaskFileTransferConfig_basic(name string) string {
@@ -113,4 +157,56 @@ resource "stonebranch_task_file_transfer" "test" {
   remote_credentials_var = "ftp_credentials"
 }
 `, name, summary)
+}
+
+func testAccTaskFileTransferConfig_udm(name string) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_task_file_transfer" "test" {
+  name        = %[1]q
+  server_type = "UDM"
+
+  agent_cluster = "Opswise - Default Linux/Unix Cluster"
+  exit_codes    = "0"
+
+  primary_broker_choice   = "Agent"
+  primary_broker          = "udm-agent-01"
+  secondary_broker_choice = "Agent Cluster"
+  secondary_cluster_ref   = "Opswise - Default Linux/Unix Cluster"
+
+  local_filename  = "/data/incoming"
+  remote_filename = "/remote/outgoing/report.csv"
+
+  command       = "GET"
+  udm_operation = "Copy"
+  format        = "Binary"
+
+  form_or_script = "Form"
+}
+`, name)
+}
+
+func testAccTaskFileTransferConfig_udmUpdated(name string) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_task_file_transfer" "test" {
+  name        = %[1]q
+  server_type = "UDM"
+
+  agent_cluster = "Opswise - Default Linux/Unix Cluster"
+  exit_codes    = "0"
+
+  primary_broker_choice   = "Agent"
+  primary_broker          = "udm-agent-01"
+  secondary_broker_choice = "Agent Cluster"
+  secondary_cluster_ref   = "Opswise - Default Linux/Unix Cluster"
+
+  local_filename  = "/data/incoming"
+  remote_filename = "/remote/outgoing/report-updated.csv"
+
+  command       = "GET"
+  udm_operation = "Copy"
+  format        = "Binary"
+
+  form_or_script = "Form"
+}
+`, name)
 }
