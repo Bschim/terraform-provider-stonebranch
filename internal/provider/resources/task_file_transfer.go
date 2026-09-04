@@ -19,8 +19,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TaskFileTransferResource{}
-	_ resource.ResourceWithImportState = &TaskFileTransferResource{}
+	_ resource.Resource                   = &TaskFileTransferResource{}
+	_ resource.ResourceWithImportState    = &TaskFileTransferResource{}
+	_ resource.ResourceWithValidateConfig = &TaskFileTransferResource{}
 )
 
 func NewTaskFileTransferResource() resource.Resource {
@@ -75,6 +76,30 @@ type TaskFileTransferResourceModel struct {
 	Encrypt  types.String `tfsdk:"encrypt"`
 	Compress types.String `tfsdk:"compress"`
 
+	// UDM agent configuration
+	PrimaryBrokerChoice   types.String `tfsdk:"primary_broker_choice"`
+	PrimaryBroker         types.String `tfsdk:"primary_broker"`
+	PrimaryCluster        types.String `tfsdk:"primary_cluster"`
+	PrimaryClusterRef     types.String `tfsdk:"primary_cluster_ref"`
+	PrimaryCredentials    types.String `tfsdk:"primary_credentials"`
+	PrimaryCredVar        types.String `tfsdk:"primary_cred_var"`
+	PrimaryFilesys        types.String `tfsdk:"primary_filesys"`
+	PrimaryOpenOptions    types.String `tfsdk:"primary_open_options"`
+	SecondaryBrokerChoice types.String `tfsdk:"secondary_broker_choice"`
+	SecondaryBroker       types.String `tfsdk:"secondary_broker"`
+	SecondaryCluster      types.String `tfsdk:"secondary_cluster"`
+	SecondaryClusterRef   types.String `tfsdk:"secondary_cluster_ref"`
+	SecondaryCredentials  types.String `tfsdk:"secondary_credentials"`
+	SecondaryCredVar      types.String `tfsdk:"secondary_cred_var"`
+	SecondaryFilesys      types.String `tfsdk:"secondary_filesys"`
+	SecondaryOpenOptions  types.String `tfsdk:"secondary_open_options"`
+	UdmOperation          types.String `tfsdk:"udm_operation"`
+	UdmOptions            types.String `tfsdk:"udm_options"`
+	Script                types.String `tfsdk:"script"`
+	Format                types.String `tfsdk:"format"`
+	FormOrScript          types.String `tfsdk:"form_or_script"`
+	Command               types.String `tfsdk:"command"`
+
 	// Variables
 	Variables types.List `tfsdk:"variables"`
 
@@ -123,6 +148,29 @@ type TaskFileTransferAPIModel struct {
 	UseRegex bool   `json:"useRegex,omitempty"`
 	Encrypt  string `json:"encrypt,omitempty"`
 	Compress string `json:"compress,omitempty"`
+
+	PrimaryBrokerChoice   string `json:"primaryBrokerChoice,omitempty"`
+	PrimaryBroker         string `json:"primaryBroker,omitempty"`
+	PrimaryCluster        string `json:"primaryCluster,omitempty"`
+	PrimaryClusterRef     string `json:"primaryClusterRef,omitempty"`
+	PrimaryCredentials    string `json:"primaryCredentials,omitempty"`
+	PrimaryCredVar        string `json:"primaryCredVar,omitempty"`
+	PrimaryFilesys        string `json:"primaryFilesys,omitempty"`
+	PrimaryOpenOptions    string `json:"primaryOpenOptions,omitempty"`
+	SecondaryBrokerChoice string `json:"secondaryBrokerChoice,omitempty"`
+	SecondaryBroker       string `json:"secondaryBroker,omitempty"`
+	SecondaryCluster      string `json:"secondaryCluster,omitempty"`
+	SecondaryClusterRef   string `json:"secondaryClusterRef,omitempty"`
+	SecondaryCredentials  string `json:"secondaryCredentials,omitempty"`
+	SecondaryCredVar      string `json:"secondaryCredVar,omitempty"`
+	SecondaryFilesys      string `json:"secondaryFilesys,omitempty"`
+	SecondaryOpenOptions  string `json:"secondaryOpenOptions,omitempty"`
+	UdmOperation          string `json:"udmOperation,omitempty"`
+	UdmOptions            string `json:"udmOptions,omitempty"`
+	Script                string `json:"script,omitempty"`
+	Format                string `json:"format,omitempty"`
+	FormOrScript          string `json:"formOrScript,omitempty"`
+	Command               string `json:"command,omitempty"`
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
@@ -265,6 +313,104 @@ func (r *TaskFileTransferResource) Schema(ctx context.Context, req resource.Sche
 				Computed:            true,
 			},
 
+			// UDM agent configuration (only applies when server_type = "UDM")
+			"primary_broker_choice": schema.StringAttribute{
+				MarkdownDescription: "Primary UDM agent option, e.g. `Agent` or `Agent Cluster`. Required when `server_type` is `UDM`.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"primary_broker": schema.StringAttribute{
+				MarkdownDescription: "Primary UDM agent name. Used when `primary_broker_choice` is `Agent`.",
+				Optional:            true,
+			},
+			"primary_cluster": schema.StringAttribute{
+				MarkdownDescription: "Primary UDM agent cluster name.",
+				Optional:            true,
+			},
+			"primary_cluster_ref": schema.StringAttribute{
+				MarkdownDescription: "Primary UDM agent cluster reference. Used when `primary_broker_choice` is `Agent Cluster`.",
+				Optional:            true,
+			},
+			"primary_credentials": schema.StringAttribute{
+				MarkdownDescription: "Name of the credentials to use for the primary UDM agent.",
+				Optional:            true,
+			},
+			"primary_cred_var": schema.StringAttribute{
+				MarkdownDescription: "Variable containing the primary UDM agent credentials name.",
+				Optional:            true,
+			},
+			"primary_filesys": schema.StringAttribute{
+				MarkdownDescription: "Primary UDM agent file system type.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"primary_open_options": schema.StringAttribute{
+				MarkdownDescription: "Additional open options for the primary UDM agent.",
+				Optional:            true,
+			},
+			"secondary_broker_choice": schema.StringAttribute{
+				MarkdownDescription: "Secondary UDM agent option, e.g. `Agent` or `Agent Cluster`. Required when `server_type` is `UDM`.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"secondary_broker": schema.StringAttribute{
+				MarkdownDescription: "Secondary UDM agent name. Used when `secondary_broker_choice` is `Agent`.",
+				Optional:            true,
+			},
+			"secondary_cluster": schema.StringAttribute{
+				MarkdownDescription: "Secondary UDM agent cluster name.",
+				Optional:            true,
+			},
+			"secondary_cluster_ref": schema.StringAttribute{
+				MarkdownDescription: "Secondary UDM agent cluster reference. Used when `secondary_broker_choice` is `Agent Cluster`.",
+				Optional:            true,
+			},
+			"secondary_credentials": schema.StringAttribute{
+				MarkdownDescription: "Name of the credentials to use for the secondary UDM agent.",
+				Optional:            true,
+			},
+			"secondary_cred_var": schema.StringAttribute{
+				MarkdownDescription: "Variable containing the secondary UDM agent credentials name.",
+				Optional:            true,
+			},
+			"secondary_filesys": schema.StringAttribute{
+				MarkdownDescription: "Secondary UDM agent file system type.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"secondary_open_options": schema.StringAttribute{
+				MarkdownDescription: "Additional open options for the secondary UDM agent.",
+				Optional:            true,
+			},
+			"udm_operation": schema.StringAttribute{
+				MarkdownDescription: "UDM operation to perform, e.g. `Copy`.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"udm_options": schema.StringAttribute{
+				MarkdownDescription: "Additional options for the UDM operation.",
+				Optional:            true,
+			},
+			"script": schema.StringAttribute{
+				MarkdownDescription: "Name of the UDM script to run. Used when `form_or_script` is `Script`.",
+				Optional:            true,
+			},
+			"format": schema.StringAttribute{
+				MarkdownDescription: "UDM transfer format, e.g. `Binary` or `ASCII`.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"form_or_script": schema.StringAttribute{
+				MarkdownDescription: "Whether the UDM transfer is configured via `Form` or `Script`.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"command": schema.StringAttribute{
+				MarkdownDescription: "UDM command to run, e.g. `GET` or `PUT`.",
+				Optional:            true,
+				Computed:            true,
+			},
+
 			// Variables
 			"variables": TaskVariablesSchema(),
 
@@ -287,6 +433,40 @@ func (r *TaskFileTransferResource) Schema(ctx context.Context, req resource.Sche
 				ElementType:         types.StringType,
 			},
 		},
+	}
+}
+
+func (r *TaskFileTransferResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data TaskFileTransferResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// If server_type is unknown (e.g. computed from another resource),
+	// defer this check to the server rather than failing the plan early.
+	if data.ServerType.IsUnknown() {
+		return
+	}
+
+	if data.ServerType.ValueString() != "UDM" {
+		return
+	}
+
+	if !isSet(data.PrimaryBrokerChoice) && !data.PrimaryBrokerChoice.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("primary_broker_choice"),
+			"Missing Required Field",
+			`"primary_broker_choice" must be set when "server_type" is "UDM".`,
+		)
+	}
+
+	if !isSet(data.SecondaryBrokerChoice) && !data.SecondaryBrokerChoice.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("secondary_broker_choice"),
+			"Missing Required Field",
+			`"secondary_broker_choice" must be set when "server_type" is "UDM".`,
+		)
 	}
 }
 
@@ -500,6 +680,29 @@ func (r *TaskFileTransferResource) toAPIModel(ctx context.Context, data *TaskFil
 		UseRegex: data.UseRegex.ValueBool(),
 		Encrypt:  data.Encrypt.ValueString(),
 		Compress: data.Compress.ValueString(),
+
+		PrimaryBrokerChoice:   data.PrimaryBrokerChoice.ValueString(),
+		PrimaryBroker:         data.PrimaryBroker.ValueString(),
+		PrimaryCluster:        data.PrimaryCluster.ValueString(),
+		PrimaryClusterRef:     data.PrimaryClusterRef.ValueString(),
+		PrimaryCredentials:    data.PrimaryCredentials.ValueString(),
+		PrimaryCredVar:        data.PrimaryCredVar.ValueString(),
+		PrimaryFilesys:        data.PrimaryFilesys.ValueString(),
+		PrimaryOpenOptions:    data.PrimaryOpenOptions.ValueString(),
+		SecondaryBrokerChoice: data.SecondaryBrokerChoice.ValueString(),
+		SecondaryBroker:       data.SecondaryBroker.ValueString(),
+		SecondaryCluster:      data.SecondaryCluster.ValueString(),
+		SecondaryClusterRef:   data.SecondaryClusterRef.ValueString(),
+		SecondaryCredentials:  data.SecondaryCredentials.ValueString(),
+		SecondaryCredVar:      data.SecondaryCredVar.ValueString(),
+		SecondaryFilesys:      data.SecondaryFilesys.ValueString(),
+		SecondaryOpenOptions:  data.SecondaryOpenOptions.ValueString(),
+		UdmOperation:          data.UdmOperation.ValueString(),
+		UdmOptions:            data.UdmOptions.ValueString(),
+		Script:                data.Script.ValueString(),
+		Format:                data.Format.ValueString(),
+		FormOrScript:          data.FormOrScript.ValueString(),
+		Command:               data.Command.ValueString(),
 	}
 
 	// Handle variables
@@ -567,6 +770,30 @@ func (r *TaskFileTransferResource) fromAPIModel(ctx context.Context, apiModel *T
 	data.UseRegex = types.BoolValue(apiModel.UseRegex)
 	data.Encrypt = StringValueOrNull(apiModel.Encrypt)
 	data.Compress = StringValueOrNull(apiModel.Compress)
+
+	// UDM agent configuration
+	data.PrimaryBrokerChoice = StringValueOrNull(apiModel.PrimaryBrokerChoice)
+	data.PrimaryBroker = StringValueOrNull(apiModel.PrimaryBroker)
+	data.PrimaryCluster = StringValueOrNull(apiModel.PrimaryCluster)
+	data.PrimaryClusterRef = StringValueOrNull(apiModel.PrimaryClusterRef)
+	data.PrimaryCredentials = StringValueOrNull(apiModel.PrimaryCredentials)
+	data.PrimaryCredVar = StringValueOrNull(apiModel.PrimaryCredVar)
+	data.PrimaryFilesys = StringValueOrNull(apiModel.PrimaryFilesys)
+	data.PrimaryOpenOptions = StringValueOrNull(apiModel.PrimaryOpenOptions)
+	data.SecondaryBrokerChoice = StringValueOrNull(apiModel.SecondaryBrokerChoice)
+	data.SecondaryBroker = StringValueOrNull(apiModel.SecondaryBroker)
+	data.SecondaryCluster = StringValueOrNull(apiModel.SecondaryCluster)
+	data.SecondaryClusterRef = StringValueOrNull(apiModel.SecondaryClusterRef)
+	data.SecondaryCredentials = StringValueOrNull(apiModel.SecondaryCredentials)
+	data.SecondaryCredVar = StringValueOrNull(apiModel.SecondaryCredVar)
+	data.SecondaryFilesys = StringValueOrNull(apiModel.SecondaryFilesys)
+	data.SecondaryOpenOptions = StringValueOrNull(apiModel.SecondaryOpenOptions)
+	data.UdmOperation = StringValueOrNull(apiModel.UdmOperation)
+	data.UdmOptions = StringValueOrNull(apiModel.UdmOptions)
+	data.Script = StringValueOrNull(apiModel.Script)
+	data.Format = StringValueOrNull(apiModel.Format)
+	data.FormOrScript = StringValueOrNull(apiModel.FormOrScript)
+	data.Command = StringValueOrNull(apiModel.Command)
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)

@@ -1139,6 +1139,72 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .compress}}
   compress = "{{quote .compress}}"
 {{- end}}
+{{- if notEmpty .primaryBrokerChoice}}
+  primary_broker_choice = "{{quote .primaryBrokerChoice}}"
+{{- end}}
+{{- if notEmpty .primaryBroker}}
+  primary_broker = "{{quote .primaryBroker}}"
+{{- end}}
+{{- if notEmpty .primaryCluster}}
+  primary_cluster = "{{quote .primaryCluster}}"
+{{- end}}
+{{- if notEmpty .primaryClusterRef}}
+  primary_cluster_ref = "{{quote .primaryClusterRef}}"
+{{- end}}
+{{- if notEmpty .primaryCredentials}}
+  primary_credentials = "{{quote .primaryCredentials}}"
+{{- end}}
+{{- if notEmpty .primaryCredVar}}
+  primary_cred_var = "{{quote .primaryCredVar}}"
+{{- end}}
+{{- if notEmpty .primaryFilesys}}
+  primary_filesys = "{{quote .primaryFilesys}}"
+{{- end}}
+{{- if notEmpty .primaryOpenOptions}}
+  primary_open_options = "{{quote .primaryOpenOptions}}"
+{{- end}}
+{{- if notEmpty .secondaryBrokerChoice}}
+  secondary_broker_choice = "{{quote .secondaryBrokerChoice}}"
+{{- end}}
+{{- if notEmpty .secondaryBroker}}
+  secondary_broker = "{{quote .secondaryBroker}}"
+{{- end}}
+{{- if notEmpty .secondaryCluster}}
+  secondary_cluster = "{{quote .secondaryCluster}}"
+{{- end}}
+{{- if notEmpty .secondaryClusterRef}}
+  secondary_cluster_ref = "{{quote .secondaryClusterRef}}"
+{{- end}}
+{{- if notEmpty .secondaryCredentials}}
+  secondary_credentials = "{{quote .secondaryCredentials}}"
+{{- end}}
+{{- if notEmpty .secondaryCredVar}}
+  secondary_cred_var = "{{quote .secondaryCredVar}}"
+{{- end}}
+{{- if notEmpty .secondaryFilesys}}
+  secondary_filesys = "{{quote .secondaryFilesys}}"
+{{- end}}
+{{- if notEmpty .secondaryOpenOptions}}
+  secondary_open_options = "{{quote .secondaryOpenOptions}}"
+{{- end}}
+{{- if notEmpty .udmOperation}}
+  udm_operation = "{{quote .udmOperation}}"
+{{- end}}
+{{- if notEmpty .udmOptions}}
+  udm_options = "{{quote .udmOptions}}"
+{{- end}}
+{{- if notEmpty .script}}
+  script = "{{quote .script}}"
+{{- end}}
+{{- if notEmpty .format}}
+  format = "{{quote .format}}"
+{{- end}}
+{{- if notEmpty .formOrScript}}
+  form_or_script = "{{quote .formOrScript}}"
+{{- end}}
+{{- if notEmpty .command}}
+  command = "{{quote .command}}"
+{{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}

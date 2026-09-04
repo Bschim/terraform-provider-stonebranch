@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added CI/CD workflows, contributing guidelines, and community files
 
 ### Fixed
+- `stonebranch_task_file_transfer`: added missing UDM (Universal Data Mover) agent/broker/cluster fields (`primary_broker_choice`, `primary_broker`, `primary_cluster`, `primary_cluster_ref`, `primary_credentials`, `primary_cred_var`, `primary_filesys`, `primary_open_options`, `secondary_broker_choice`, `secondary_broker`, `secondary_cluster`, `secondary_cluster_ref`, `secondary_credentials`, `secondary_cred_var`, `secondary_filesys`, `secondary_open_options`, `udm_operation`, `udm_options`, `script`, `format`, `form_or_script`, `command`), which previously caused UAC to reject `terraform apply` for any UDM-based file transfer task with a misleading `primaryBrokerRef must not be blank` / `secondaryBrokerRef must not be blank` error
+- `sb2tf`: `taskFileTransferTemplate` now exports the new UDM fields above
 - `sb2tf`: fixed `notEmpty()` silently treating non-zero numeric fields as empty (JSON numbers decode as `float64`), which had dropped 14 fields (`stable_seconds`, `retry_maximum`, `retry_interval`, `smtp_port`, `limit`/`limit_amount`, `max_rows`, `timeout`, `time_interval`, `day`, `nth_amount`, `adjustment_amount`, `retention_duration_rt`, and universal-template field-slot attributes) from every export
 - `sb2tf`: fixed `taskFileMonitorTemplate` never exporting `agentVar`/`agentClusterVar`, and `taskTimerTemplate` never exporting `sleep_amount`
 - `sb2tf`: fixed the shared `actions` attribute (`system_operations`, `email_notifications`, `abort_actions`, `set_variable_actions`, `snmp_notifications`) being silently dropped from every task template's export

@@ -58,3 +58,27 @@ resource "stonebranch_credential" "sftp" {
   runtime_user     = var.sftp_user
   runtime_password = var.sftp_password
 }
+
+# UDM (Universal Data Mover) transfer task
+resource "stonebranch_task_file_transfer" "udm_transfer" {
+  name    = "tf-example-udm-transfer"
+  summary = "Transfer a file via a UDM agent cluster"
+
+  server_type = "UDM"
+
+  primary_broker_choice   = "Agent"
+  primary_broker          = "udm-agent-01"
+  secondary_broker_choice = "Agent Cluster"
+  secondary_cluster_ref   = "tf-example-udm-cluster"
+
+  local_filename  = "/data/incoming"
+  remote_filename = "/remote/outgoing/report.csv"
+
+  command       = "GET"
+  udm_operation = "Copy"
+  format        = "Binary"
+
+  form_or_script = "Script"
+  script         = "tf-example-udm-transfer-script"
+}
+
