@@ -56,8 +56,16 @@ func registerTemplate(name, tmpl string) {
 		"notEmpty":      notEmpty,
 		"isTrue":        isTrue,
 		"fieldSet":      fieldSet,
+		"hasActions":    hasActions,
 		"heredocEscape": heredocEscape,
 	})
+	// Parse the shared actions_block/*_item sub-templates into t's set
+	// first (actionsTemplateDefs contains only {{define}} blocks, so this
+	// is a no-op on t's own body), then parse the resource's own template
+	// body. Every registered template gets these sub-templates available
+	// regardless of whether it invokes {{template "actions_block" ...}} -
+	// harmless for the ones that don't.
+	template.Must(t.Parse(actionsTemplateDefs))
 	templates[name] = template.Must(t.Parse(tmpl))
 }
 
@@ -130,6 +138,14 @@ func notEmpty(v interface{}) bool {
 		return len(val) > 0
 	case bool:
 		return true // booleans are always "not empty" for template purposes
+	case float64:
+		return val != 0 // JSON numbers decode as float64 in map[string]interface{}
+	case float32:
+		return val != 0
+	case int:
+		return val != 0
+	case int64:
+		return val != 0
 	default:
 		return false
 	}
@@ -163,6 +179,390 @@ func fieldSet(v interface{}) bool {
 	}
 	return true
 }
+
+// hasActions reports whether a raw "actions" JSON object has at least one
+// non-empty action sub-list. Mirrors TaskActionsFromAPI's null-collapsing
+// logic in internal/provider/resources/task_actions.go, so an `actions` key
+// that is present but entirely empty (as seen on tasks with no configured
+// actions) does not produce an empty `actions = {}` stub in the generated HCL.
+func hasActions(v interface{}) bool {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for _, k := range []string{"systemOperations", "emailNotifications", "abortActions", "setVariableActions", "snmpNotifications"} {
+		if notEmpty(m[k]) {
+			return true
+		}
+	}
+	return false
+}
+
+// actionsTemplateDefs contains only {{define}} blocks (no top-level text)
+// for rendering the shared `actions` attribute present on every task
+// resource type. It is parsed into every registered template's set by
+// registerTemplate, and invoked by each task template via
+// {{template "actions_block" .actions}}, gated on {{if hasActions .actions}}.
+//
+// Field names below use raw camelCase JSON keys (matching how every other
+// template already accesses fields on the generic map[string]interface{}
+// data); the snake_case only appears in the *emitted* HCL attribute names.
+// Cross-checked against internal/provider/resources/task_actions.go:
+//   - "sys_id" is intentionally omitted everywhere (Computed-only, never
+//     Optional, so it's never something a generated .tf file should set).
+//   - "variable_name" in set_variable_action_item is unconditional (schema:
+//     Required: true).
+const actionsTemplateDefs = `
+{{define "common_action_attrs"}}
+{{- if notEmpty .status}}
+      status = "{{quote .status}}"
+{{- end}}
+{{- if isTrue .notifyOnLateStart}}
+      notify_on_late_start = true
+{{- end}}
+{{- if isTrue .notifyOnLateFinish}}
+      notify_on_late_finish = true
+{{- end}}
+{{- if isTrue .notifyOnEarlyFinish}}
+      notify_on_early_finish = true
+{{- end}}
+{{- if isTrue .notifyOnProjectedLate}}
+      notify_on_projected_late = true
+{{- end}}
+{{- if notEmpty .exitCodes}}
+      exit_codes = "{{quote .exitCodes}}"
+{{- end}}
+{{- if notEmpty .description}}
+      description = "{{quote .description}}"
+{{- end}}
+{{- if notEmpty .inheritance}}
+      inheritance = "{{quote .inheritance}}"
+{{- end}}
+{{end}}
+
+{{define "abort_action_item"}}
+    {
+{{- template "common_action_attrs" .}}
+{{- if isTrue .cancelProcess}}
+      cancel_process = true
+{{- end}}
+{{- if notEmpty .overrideExitCode}}
+      override_exit_code = "{{quote .overrideExitCode}}"
+{{- end}}
+{{- if isTrue .haltOnFinish}}
+      halt_on_finish = true
+{{- end}}
+    },
+{{end}}
+
+{{define "email_notification_item"}}
+    {
+{{- template "common_action_attrs" .}}
+{{- if notEmpty .subject}}
+      subject = "{{quote .subject}}"
+{{- end}}
+{{- if notEmpty .body}}
+      body = "{{quote .body}}"
+{{- end}}
+{{- if notEmpty .to}}
+      to = "{{quote .to}}"
+{{- end}}
+{{- if notEmpty .cc}}
+      cc = "{{quote .cc}}"
+{{- end}}
+{{- if notEmpty .bcc}}
+      bcc = "{{quote .bcc}}"
+{{- end}}
+{{- if notEmpty .replyTo}}
+      reply_to = "{{quote .replyTo}}"
+{{- end}}
+{{- if notEmpty .emailTemplate}}
+      email_template = "{{quote .emailTemplate}}"
+{{- end}}
+{{- if notEmpty .emailTemplateVar}}
+      email_template_var = "{{quote .emailTemplateVar}}"
+{{- end}}
+{{- if notEmpty .emailConnection}}
+      email_connection = "{{quote .emailConnection}}"
+{{- end}}
+{{- if isTrue .attachStdError}}
+      attach_std_error = true
+{{- end}}
+{{- if isTrue .attachStdOut}}
+      attach_std_out = true
+{{- end}}
+{{- if isTrue .attachFile}}
+      attach_file = true
+{{- end}}
+{{- if notEmpty .fileName}}
+      file_name = "{{quote .fileName}}"
+{{- end}}
+{{- if notEmpty .fileNumLines}}
+      file_num_lines = {{.fileNumLines}}
+{{- end}}
+{{- if notEmpty .fileStartLine}}
+      file_start_line = {{.fileStartLine}}
+{{- end}}
+{{- if notEmpty .fileScanText}}
+      file_scan_text = "{{quote .fileScanText}}"
+{{- end}}
+{{- if notEmpty .stderrNumLines}}
+      stderr_num_lines = {{.stderrNumLines}}
+{{- end}}
+{{- if notEmpty .stderrStartLine}}
+      stderr_start_line = {{.stderrStartLine}}
+{{- end}}
+{{- if notEmpty .stderrScanText}}
+      stderr_scan_text = "{{quote .stderrScanText}}"
+{{- end}}
+{{- if notEmpty .stdoutNumLines}}
+      stdout_num_lines = {{.stdoutNumLines}}
+{{- end}}
+{{- if notEmpty .stdoutStartLine}}
+      stdout_start_line = {{.stdoutStartLine}}
+{{- end}}
+{{- if notEmpty .stdoutScanText}}
+      stdout_scan_text = "{{quote .stdoutScanText}}"
+{{- end}}
+{{- if isTrue .attachJobLog}}
+      attach_job_log = true
+{{- end}}
+{{- if notEmpty .joblogStartLine}}
+      joblog_start_line = {{.joblogStartLine}}
+{{- end}}
+{{- if notEmpty .joblogNumLines}}
+      joblog_num_lines = {{.joblogNumLines}}
+{{- end}}
+{{- if notEmpty .joblogScanText}}
+      joblog_scan_text = "{{quote .joblogScanText}}"
+{{- end}}
+{{- if notEmpty .reportId}}
+      report_id = "{{quote .reportId}}"
+{{- end}}
+{{- if notEmpty .reportVar}}
+      report_var = "{{quote .reportVar}}"
+{{- end}}
+{{- if notEmpty .useReportVar}}
+      use_report_var = "{{quote .useReportVar}}"
+{{- end}}
+{{- if notEmpty .listReportFormat}}
+      list_report_format = "{{quote .listReportFormat}}"
+{{- end}}
+{{- if isTrue .attachLocalFile}}
+      attach_local_file = true
+{{- end}}
+{{- if notEmpty .localAttachment}}
+      local_attachment = "{{quote .localAttachment}}"
+{{- end}}
+{{- if notEmpty .localAttachmentsPath}}
+      local_attachments_path = "{{quote .localAttachmentsPath}}"
+{{- end}}
+{{- if .report}}
+      report = {
+{{- if notEmpty .report.title}}
+        title = "{{quote .report.title}}"
+{{- end}}
+{{- if notEmpty .report.userName}}
+        user_name = "{{quote .report.userName}}"
+{{- end}}
+{{- if notEmpty .report.groupName}}
+        group_name = "{{quote .report.groupName}}"
+{{- end}}
+{{- if notEmpty .report.groupNames}}
+        group_names = [{{stringList .report.groupNames}}]
+{{- end}}
+      }
+{{- end}}
+    },
+{{end}}
+
+{{define "set_variable_action_item"}}
+    {
+{{- template "common_action_attrs" .}}
+{{- if notEmpty .variableScope}}
+      variable_scope = "{{quote .variableScope}}"
+{{- end}}
+      variable_name = "{{quote .variableName}}"
+{{- if notEmpty .variableDescription}}
+      variable_description = "{{quote .variableDescription}}"
+{{- end}}
+{{- if notEmpty .variableValue}}
+      variable_value = "{{quote .variableValue}}"
+{{- end}}
+{{- if notEmpty .notificationOption}}
+      notification_option = "{{quote .notificationOption}}"
+{{- end}}
+    },
+{{end}}
+
+{{define "snmp_notification_item"}}
+    {
+{{- template "common_action_attrs" .}}
+{{- if notEmpty .snmpManager}}
+      snmp_manager = "{{quote .snmpManager}}"
+{{- end}}
+{{- if notEmpty .severity}}
+      severity = "{{quote .severity}}"
+{{- end}}
+    },
+{{end}}
+
+{{define "system_operation_item"}}
+    {
+{{- template "common_action_attrs" .}}
+{{- if notEmpty .operation}}
+      operation = "{{quote .operation}}"
+{{- end}}
+{{- if notEmpty .task}}
+      task = "{{quote .task}}"
+{{- end}}
+{{- if notEmpty .taskVar}}
+      task_var = "{{quote .taskVar}}"
+{{- end}}
+{{- if notEmpty .taskLimitType}}
+      task_limit_type = "{{quote .taskLimitType}}"
+{{- end}}
+{{- if notEmpty .limit}}
+      limit = "{{quote .limit}}"
+{{- end}}
+{{- if notEmpty .virtualResource}}
+      virtual_resource = "{{quote .virtualResource}}"
+{{- end}}
+{{- if notEmpty .virtualResourceVar}}
+      virtual_resource_var = "{{quote .virtualResourceVar}}"
+{{- end}}
+{{- if notEmpty .execCommand}}
+      exec_command = "{{quote .execCommand}}"
+{{- end}}
+{{- if notEmpty .execCriteria}}
+      exec_criteria = "{{quote .execCriteria}}"
+{{- end}}
+{{- if notEmpty .execLookupOption}}
+      exec_lookup_option = "{{quote .execLookupOption}}"
+{{- end}}
+{{- if notEmpty .execName}}
+      exec_name = "{{quote .execName}}"
+{{- end}}
+{{- if notEmpty .execId}}
+      exec_id = "{{quote .execId}}"
+{{- end}}
+{{- if notEmpty .execWorkflowName}}
+      exec_workflow_name = "{{quote .execWorkflowName}}"
+{{- end}}
+{{- if notEmpty .execWorkflowNameCond}}
+      exec_workflow_name_cond = "{{quote .execWorkflowNameCond}}"
+{{- end}}
+{{- if notEmpty .agent}}
+      agent = "{{quote .agent}}"
+{{- end}}
+{{- if notEmpty .agentVar}}
+      agent_var = "{{quote .agentVar}}"
+{{- end}}
+{{- if notEmpty .agentCluster}}
+      agent_cluster = "{{quote .agentCluster}}"
+{{- end}}
+{{- if notEmpty .agentClusterVar}}
+      agent_cluster_var = "{{quote .agentClusterVar}}"
+{{- end}}
+{{- if notEmpty .trigger}}
+      trigger = "{{quote .trigger}}"
+{{- end}}
+{{- if notEmpty .triggerVar}}
+      trigger_var = "{{quote .triggerVar}}"
+{{- end}}
+{{- if notEmpty .overrideTriggerTime}}
+      override_trigger_time = "{{quote .overrideTriggerTime}}"
+{{- end}}
+{{- if isTrue .overrideTriggerDateTime}}
+      override_trigger_date_time = true
+{{- end}}
+{{- if notEmpty .overrideTriggerDateOffset}}
+      override_trigger_date_offset = "{{quote .overrideTriggerDateOffset}}"
+{{- end}}
+{{- if isTrue .vertexSelection}}
+      vertex_selection = true
+{{- end}}
+{{- if notEmpty .vertices}}
+      vertices = [
+{{- range .vertices}}
+        {
+{{- if notEmpty .taskName}}
+          task_name = "{{quote .taskName}}"
+{{- end}}
+{{- if notEmpty .vertexName}}
+          vertex_name = "{{quote .vertexName}}"
+{{- end}}
+{{- if notEmpty .vertexId}}
+          vertex_id = "{{quote .vertexId}}"
+{{- end}}
+        },
+{{- end}}
+      ]
+{{- end}}
+{{- if notEmpty .notificationOption}}
+      notification_option = "{{quote .notificationOption}}"
+{{- end}}
+{{- if isTrue .variablesUnresolved}}
+      variables_unresolved = true
+{{- end}}
+{{- if notEmpty .variables}}
+      variables = [
+{{- range .variables}}
+        {
+          name = "{{quote .name}}"
+{{- if notEmpty .value}}
+          value = "{{quote .value}}"
+{{- end}}
+{{- if notEmpty .description}}
+          description = "{{quote .description}}"
+{{- end}}
+        },
+{{- end}}
+      ]
+{{- end}}
+    },
+{{end}}
+
+{{define "actions_block"}}
+  actions = {
+{{- if notEmpty .systemOperations}}
+    system_operations = [
+{{- range .systemOperations}}
+{{template "system_operation_item" .}}
+{{- end}}
+    ]
+{{- end}}
+{{- if notEmpty .emailNotifications}}
+    email_notifications = [
+{{- range .emailNotifications}}
+{{template "email_notification_item" .}}
+{{- end}}
+    ]
+{{- end}}
+{{- if notEmpty .abortActions}}
+    abort_actions = [
+{{- range .abortActions}}
+{{template "abort_action_item" .}}
+{{- end}}
+    ]
+{{- end}}
+{{- if notEmpty .setVariableActions}}
+    set_variable_actions = [
+{{- range .setVariableActions}}
+{{template "set_variable_action_item" .}}
+{{- end}}
+    ]
+{{- end}}
+{{- if notEmpty .snmpNotifications}}
+    snmp_notifications = [
+{{- range .snmpNotifications}}
+{{template "snmp_notification_item" .}}
+{{- end}}
+    ]
+{{- end}}
+  }
+{{end}}
+`
 
 // ============================================================================
 // Simple Resources
@@ -413,6 +813,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -500,6 +903,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -542,6 +948,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -569,6 +978,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -583,6 +995,12 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .agentCluster}}
   agent_cluster = "{{quote .agentCluster}}"
+{{- end}}
+{{- if notEmpty .agentVar}}
+  agent_var = "{{quote .agentVar}}"
+{{- end}}
+{{- if notEmpty .agentClusterVar}}
+  agent_cluster_var = "{{quote .agentClusterVar}}"
 {{- end}}
 {{- if notEmpty .fileName}}
   file_name = "{{quote .fileName}}"
@@ -610,6 +1028,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
 {{- end}}
 }
 `
@@ -680,6 +1101,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -692,6 +1116,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .sleepType}}
   sleep_type = "{{quote .sleepType}}"
 {{- end}}
+{{- if notEmpty .sleepAmount}}
+  sleep_amount = "{{quote .sleepAmount}}"
+{{- end}}
 {{- if notEmpty .sleepDuration}}
   sleep_duration = "{{quote .sleepDuration}}"
 {{- end}}
@@ -703,6 +1130,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
 {{- end}}
 }
 `
@@ -740,6 +1170,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -769,6 +1202,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
 {{- end}}
 }
 `
@@ -815,6 +1251,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
+{{- end}}
 }
 `
 
@@ -836,6 +1275,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
   # Note: Universal task template fields may require manual adjustment
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
 {{- end}}
 }
 `
@@ -903,6 +1345,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
 {{- end}}
 }
 `
@@ -1095,6 +1540,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
+{{- end}}
+{{- if hasActions .actions}}
+{{template "actions_block" .actions}}
 {{- end}}
 }
 `
