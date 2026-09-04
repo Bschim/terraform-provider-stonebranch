@@ -796,7 +796,7 @@ func (r *TaskFileTransferResource) fromAPIModel(ctx context.Context, apiModel *T
 	data.Command = StringValueOrNull(apiModel.Command)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)

@@ -116,6 +116,32 @@ func TestAccTaskFileTransferResource_udm(t *testing.T) {
 	})
 }
 
+// TestAccTaskFileTransferResource_multipleVariables guards against a real bug:
+// UAC's GET response does not preserve the order variables were created in, and
+// since `variables` is not Computed, returning it in API order (rather than the
+// order set in config) trips Terraform's "inconsistent result after apply" check.
+func TestAccTaskFileTransferResource_multipleVariables(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-test-ftp-vars")
+	resourceName := "stonebranch_task_file_transfer.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { sbacctest.PreCheck(t) },
+		ProtoV6ProviderFactories: sbacctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccTaskFileTransferConfig_multipleVariables(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "variables.0.name", "BATCH_JOB_NAME"),
+					resource.TestCheckResourceAttr(resourceName, "variables.0.value", "CGBALCTA"),
+					resource.TestCheckResourceAttr(resourceName, "variables.1.name", "BATCH_JOB_ID"),
+					resource.TestCheckResourceAttr(resourceName, "variables.2.name", "BATCH_JOB_RUN_NUMBER"),
+					resource.TestCheckResourceAttr(resourceName, "variables.2.value", "${_trim('${__replaceAll('${___outputLinesByRegexFromTask('CGBALCTA','STDOUT','.*Run number.*')}', '.*:\\s*', '')}')}"),
+				),
+			},
+		},
+	})
+}
+
 // Test configuration helpers
 
 func testAccTaskFileTransferConfig_basic(name string) string {
@@ -181,6 +207,34 @@ resource "stonebranch_task_file_transfer" "test" {
   format        = "Binary"
 
   form_or_script = "Form"
+}
+`, name)
+}
+
+func testAccTaskFileTransferConfig_multipleVariables(name string) string {
+	return sbacctest.ProviderConfig() + fmt.Sprintf(`
+resource "stonebranch_task_file_transfer" "test" {
+  name                   = %[1]q
+  agent_var              = "agent_name"
+  remote_server          = "test.example.com"
+  remote_filename        = "/remote/path/file.txt"
+  local_filename         = "/local/path/file.txt"
+  remote_credentials_var = "ftp_credentials"
+
+  variables = [
+    {
+      name  = "BATCH_JOB_NAME"
+      value = "CGBALCTA"
+    },
+    {
+      name  = "BATCH_JOB_ID"
+      value = "12345"
+    },
+    {
+      name  = "BATCH_JOB_RUN_NUMBER"
+      value = "$${_trim('$${__replaceAll('$${___outputLinesByRegexFromTask('CGBALCTA','STDOUT','.*Run number.*')}', '.*:\\s*', '')}')}"
+    },
+  ]
 }
 `, name)
 }

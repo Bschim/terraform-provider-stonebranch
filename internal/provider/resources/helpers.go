@@ -93,6 +93,46 @@ func TaskVariablesFromAPI(ctx context.Context, apiVars []TaskVariableAPIModel) t
 	return result
 }
 
+// TaskVariablesFromAPIOrdered converts API variable models to a Terraform list,
+// re-ordering them (matched by name) to match priorOrder. The `variables`
+// attribute is not Computed, so its final value must match the plan exactly;
+// the UAC API does not preserve the order variables were submitted in, so
+// blindly using its response order can trip Terraform's "inconsistent result
+// after apply" check even though the actual name/value pairs are unchanged.
+// Variables present in apiVars but not in priorOrder (e.g. added server-side)
+// are appended at the end in API order.
+func TaskVariablesFromAPIOrdered(ctx context.Context, apiVars []TaskVariableAPIModel, priorOrder types.List) types.List {
+	if len(apiVars) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return TaskVariablesFromAPI(ctx, apiVars)
+	}
+
+	var priorVars []TaskVariableModel
+	priorOrder.ElementsAs(ctx, &priorVars, false)
+
+	byName := make(map[string]TaskVariableAPIModel, len(apiVars))
+	for _, v := range apiVars {
+		byName[v.Name] = v
+	}
+
+	ordered := make([]TaskVariableAPIModel, 0, len(apiVars))
+	seen := make(map[string]bool, len(apiVars))
+	for _, pv := range priorVars {
+		name := pv.Name.ValueString()
+		if v, ok := byName[name]; ok && !seen[name] {
+			ordered = append(ordered, v)
+			seen[name] = true
+		}
+	}
+	for _, v := range apiVars {
+		if !seen[v.Name] {
+			ordered = append(ordered, v)
+			seen[v.Name] = true
+		}
+	}
+
+	return TaskVariablesFromAPI(ctx, ordered)
+}
+
 // StringValueOrNull returns a StringValue if s is non-empty, otherwise StringNull.
 func StringValueOrNull(s string) types.String {
 	if s == "" {
