@@ -62,6 +62,7 @@ type TaskUniversalResourceModel struct {
 	// Exit code handling
 	ExitCodes          types.String `tfsdk:"exit_codes"`
 	ExitCodeProcessing types.String `tfsdk:"exit_code_processing"`
+	ExitCodeText       types.String `tfsdk:"exit_code_text"`
 
 	// Retry configuration
 	RetryMaximum         types.Int64 `tfsdk:"retry_maximum"`
@@ -161,6 +162,7 @@ type TaskUniversalAPIModel struct {
 
 	ExitCodes          string `json:"exitCodes,omitempty"`
 	ExitCodeProcessing string `json:"exitCodeProcessing,omitempty"`
+	ExitCodeText       string `json:"exitCodeText,omitempty"`
 
 	RetryMaximum         int64 `json:"retryMaximum,omitempty"`
 	RetryIndefinitely    bool  `json:"retryIndefinitely,omitempty"`
@@ -332,6 +334,10 @@ func (r *TaskUniversalResource) Schema(ctx context.Context, req resource.SchemaR
 				MarkdownDescription: "How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.",
 				Optional:            true,
 				Computed:            true,
+			},
+			"exit_code_text": schema.StringAttribute{
+				MarkdownDescription: "Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.",
+				Optional:            true,
 			},
 
 			// Retry configuration
@@ -667,6 +673,7 @@ func (r *TaskUniversalResource) toAPIModel(ctx context.Context, data *TaskUniver
 
 		ExitCodes:          StringValueOrDefault(data.ExitCodes, "0"),
 		ExitCodeProcessing: data.ExitCodeProcessing.ValueString(),
+		ExitCodeText:       data.ExitCodeText.ValueString(),
 
 		RetryMaximum:         data.RetryMaximum.ValueInt64(),
 		RetryIndefinitely:    data.RetryIndefinitely.ValueBool(),
@@ -769,6 +776,7 @@ func (r *TaskUniversalResource) fromAPIModel(ctx context.Context, apiModel *Task
 	data.CredentialsVar = StringValueOrNull(apiModel.CredentialsVar)
 	data.ExitCodes = StringValueOrNull(apiModel.ExitCodes)
 	data.ExitCodeProcessing = StringValueOrNull(apiModel.ExitCodeProcessing)
+	data.ExitCodeText = StringValueOrNull(apiModel.ExitCodeText)
 
 	// Computed fields
 	data.RetryMaximum = types.Int64Value(apiModel.RetryMaximum)

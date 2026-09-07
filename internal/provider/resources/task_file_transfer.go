@@ -70,6 +70,7 @@ type TaskFileTransferResourceModel struct {
 	// Exit code handling
 	ExitCodes          types.String `tfsdk:"exit_codes"`
 	ExitCodeProcessing types.String `tfsdk:"exit_code_processing"`
+	ExitCodeText       types.String `tfsdk:"exit_code_text"`
 
 	// Options
 	UseRegex types.Bool   `tfsdk:"use_regex"`
@@ -144,6 +145,7 @@ type TaskFileTransferAPIModel struct {
 
 	ExitCodes          string `json:"exitCodes,omitempty"`
 	ExitCodeProcessing string `json:"exitCodeProcessing,omitempty"`
+	ExitCodeText       string `json:"exitCodeText,omitempty"`
 
 	UseRegex bool   `json:"useRegex,omitempty"`
 	Encrypt  string `json:"encrypt,omitempty"`
@@ -294,6 +296,10 @@ func (r *TaskFileTransferResource) Schema(ctx context.Context, req resource.Sche
 				MarkdownDescription: "How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.",
 				Optional:            true,
 				Computed:            true,
+			},
+			"exit_code_text": schema.StringAttribute{
+				MarkdownDescription: "Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.",
+				Optional:            true,
 			},
 
 			// Options
@@ -676,6 +682,7 @@ func (r *TaskFileTransferResource) toAPIModel(ctx context.Context, data *TaskFil
 
 		ExitCodes:          data.ExitCodes.ValueString(),
 		ExitCodeProcessing: data.ExitCodeProcessing.ValueString(),
+		ExitCodeText:       data.ExitCodeText.ValueString(),
 
 		UseRegex: data.UseRegex.ValueBool(),
 		Encrypt:  data.Encrypt.ValueString(),
@@ -765,6 +772,7 @@ func (r *TaskFileTransferResource) fromAPIModel(ctx context.Context, apiModel *T
 	// Exit code handling
 	data.ExitCodes = StringValueOrNull(apiModel.ExitCodes)
 	data.ExitCodeProcessing = StringValueOrNull(apiModel.ExitCodeProcessing)
+	data.ExitCodeText = StringValueOrNull(apiModel.ExitCodeText)
 
 	// Options
 	data.UseRegex = types.BoolValue(apiModel.UseRegex)

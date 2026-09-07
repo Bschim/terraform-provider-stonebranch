@@ -62,6 +62,7 @@ type TaskWindowsResourceModel struct {
 	// Exit code handling
 	ExitCodes          types.String `tfsdk:"exit_codes"`
 	ExitCodeProcessing types.String `tfsdk:"exit_code_processing"`
+	ExitCodeText       types.String `tfsdk:"exit_code_text"`
 
 	// Output handling
 	OutputType        types.String `tfsdk:"output_type"`
@@ -113,6 +114,7 @@ type TaskWindowsAPIModel struct {
 
 	ExitCodes          string `json:"exitCodes,omitempty"`
 	ExitCodeProcessing string `json:"exitCodeProcessing,omitempty"`
+	ExitCodeText       string `json:"exitCodeText,omitempty"`
 
 	OutputType        string `json:"outputType,omitempty"`
 	WaitForOutput     bool   `json:"waitForOutput,omitempty"`
@@ -229,6 +231,10 @@ func (r *TaskWindowsResource) Schema(ctx context.Context, req resource.SchemaReq
 				MarkdownDescription: "How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.",
 				Optional:            true,
 				Computed:            true,
+			},
+			"exit_code_text": schema.StringAttribute{
+				MarkdownDescription: "Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.",
+				Optional:            true,
 			},
 
 			// Output handling
@@ -516,6 +522,7 @@ func (r *TaskWindowsResource) toAPIModel(ctx context.Context, data *TaskWindowsR
 
 		ExitCodes:          StringValueOrDefault(data.ExitCodes, "0"),
 		ExitCodeProcessing: data.ExitCodeProcessing.ValueString(),
+		ExitCodeText:       data.ExitCodeText.ValueString(),
 
 		OutputType:        data.OutputType.ValueString(),
 		WaitForOutput:     data.WaitForOutput.ValueBool(),
@@ -569,6 +576,7 @@ func (r *TaskWindowsResource) fromAPIModel(ctx context.Context, apiModel *TaskWi
 	data.CredentialsVar = StringValueOrNull(apiModel.CredentialsVar)
 	data.ExitCodes = StringValueOrNull(apiModel.ExitCodes)
 	data.ExitCodeProcessing = StringValueOrNull(apiModel.ExitCodeProcessing)
+	data.ExitCodeText = StringValueOrNull(apiModel.ExitCodeText)
 
 	// Computed fields - always set from API (server provides defaults)
 	data.CommandOrScript = types.StringValue(apiModel.CommandOrScript)

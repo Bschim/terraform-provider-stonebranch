@@ -104,6 +104,7 @@ resource "stonebranch_script" "windows_batch" {
 - `desktop_interact` (Boolean) Whether the task can interact with the desktop.
 - `elevate_user` (Boolean) Whether to run the task with elevated (administrator) privileges.
 - `exit_code_processing` (String) How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.
+- `exit_code_text` (String) Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.
 - `exit_codes` (String) Exit codes that indicate success (e.g., '0' or '0,1,2'). Defaults to '0'.
 - `opswise_groups` (List of String) List of business service names this task belongs to.
 - `output_return_file` (String) File to capture output from.

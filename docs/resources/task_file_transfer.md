@@ -119,6 +119,7 @@ resource "stonebranch_task_file_transfer" "udm_transfer" {
 - `encrypt` (String) Encryption setting for the transfer.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
 - `exit_code_processing` (String) How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.
+- `exit_code_text` (String) Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.
 - `exit_codes` (String) Exit codes that indicate success (e.g., '0' or '0,1,2').
 - `form_or_script` (String) Whether the UDM transfer is configured via `Form` or `Script`.
 - `format` (String) UDM transfer format, e.g. `Binary` or `ASCII`.

@@ -830,6 +830,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .exitCodeProcessing}}
   exit_code_processing = "{{quote .exitCodeProcessing}}"
 {{- end}}
+{{- if notEmpty .exitCodeText}}
+  exit_code_text = "{{quote .exitCodeText}}"
+{{- end}}
 {{- if isTrue .runAsSudo}}
   run_as_sudo = true
 {{- end}}
@@ -889,6 +892,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .exitCodeProcessing}}
   exit_code_processing = "{{quote .exitCodeProcessing}}"
+{{- end}}
+{{- if notEmpty .exitCodeText}}
+  exit_code_text = "{{quote .exitCodeText}}"
 {{- end}}
 {{- if isTrue .elevateUser}}
   elevate_user = true
@@ -1129,6 +1135,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .exitCodeProcessing}}
   exit_code_processing = "{{quote .exitCodeProcessing}}"
+{{- end}}
+{{- if notEmpty .exitCodeText}}
+  exit_code_text = "{{quote .exitCodeText}}"
 {{- end}}
 {{- if isTrue .useRegex}}
   use_regex = true
@@ -1518,6 +1527,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .exitCodeProcessing}}
   exit_code_processing = "{{quote .exitCodeProcessing}}"
+{{- end}}
+{{- if notEmpty .exitCodeText}}
+  exit_code_text = "{{quote .exitCodeText}}"
 {{- end}}
 {{- if notEmpty .retryMaximum}}
   retry_maximum = {{.retryMaximum}}
