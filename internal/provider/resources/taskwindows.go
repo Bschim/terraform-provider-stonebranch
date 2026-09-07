@@ -590,7 +590,7 @@ func (r *TaskWindowsResource) fromAPIModel(ctx context.Context, apiModel *TaskWi
 	data.CreateConsole = types.BoolValue(apiModel.CreateConsole)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

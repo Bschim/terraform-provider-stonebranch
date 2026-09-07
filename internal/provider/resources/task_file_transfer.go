@@ -804,7 +804,7 @@ func (r *TaskFileTransferResource) fromAPIModel(ctx context.Context, apiModel *T
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

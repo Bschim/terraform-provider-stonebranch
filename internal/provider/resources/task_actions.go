@@ -360,6 +360,13 @@ func abortActionsToAPI(ctx context.Context, list types.List) []AbortActionAPIMod
 	return result
 }
 
+func abortActionsFromAPIOrdered(ctx context.Context, api []AbortActionAPIModel, priorOrder types.List) types.List {
+	if len(api) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return abortActionsFromAPI(api)
+	}
+	return abortActionsFromAPI(reorderToMatchPrior(api, abortActionsToAPI(ctx, priorOrder)))
+}
+
 func abortActionsFromAPI(api []AbortActionAPIModel) types.List {
 	if len(api) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: abortActionAttrTypes()})
@@ -636,6 +643,13 @@ func emailNotificationsToAPI(ctx context.Context, list types.List) []EmailNotifi
 	return result
 }
 
+func emailNotificationsFromAPIOrdered(ctx context.Context, api []EmailNotificationAPIModel, priorOrder types.List) types.List {
+	if len(api) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return emailNotificationsFromAPI(ctx, api)
+	}
+	return emailNotificationsFromAPI(ctx, reorderToMatchPrior(api, emailNotificationsToAPI(ctx, priorOrder)))
+}
+
 func emailNotificationsFromAPI(ctx context.Context, api []EmailNotificationAPIModel) types.List {
 	if len(api) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: emailNotificationAttrTypes()})
@@ -800,6 +814,13 @@ func setVariableActionsToAPI(ctx context.Context, list types.List) []SetVariable
 	return result
 }
 
+func setVariableActionsFromAPIOrdered(ctx context.Context, api []SetVariableActionAPIModel, priorOrder types.List) types.List {
+	if len(api) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return setVariableActionsFromAPI(api)
+	}
+	return setVariableActionsFromAPI(reorderToMatchPrior(api, setVariableActionsToAPI(ctx, priorOrder)))
+}
+
 func setVariableActionsFromAPI(api []SetVariableActionAPIModel) types.List {
 	if len(api) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: setVariableActionAttrTypes()})
@@ -907,6 +928,13 @@ func snmpNotificationsToAPI(ctx context.Context, list types.List) []SnmpNotifica
 		}
 	}
 	return result
+}
+
+func snmpNotificationsFromAPIOrdered(ctx context.Context, api []SnmpNotificationAPIModel, priorOrder types.List) types.List {
+	if len(api) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return snmpNotificationsFromAPI(api)
+	}
+	return snmpNotificationsFromAPI(reorderToMatchPrior(api, snmpNotificationsToAPI(ctx, priorOrder)))
 }
 
 func snmpNotificationsFromAPI(api []SnmpNotificationAPIModel) types.List {
@@ -1150,6 +1178,13 @@ func systemOperationsToAPI(ctx context.Context, list types.List) []SystemOperati
 	return result
 }
 
+func systemOperationsFromAPIOrdered(ctx context.Context, api []SystemOperationAPIModel, priorOrder types.List) types.List {
+	if len(api) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return systemOperationsFromAPI(ctx, api)
+	}
+	return systemOperationsFromAPI(ctx, reorderToMatchPrior(api, systemOperationsToAPI(ctx, priorOrder)))
+}
+
 func systemOperationsFromAPI(ctx context.Context, api []SystemOperationAPIModel) types.List {
 	if len(api) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: systemOperationAttrTypes()})
@@ -1267,8 +1302,13 @@ func TaskActionsToAPI(ctx context.Context, actions types.Object) *ActionsAPIMode
 	}
 }
 
-// TaskActionsFromAPI converts an API actions model to the Terraform `actions` object.
-func TaskActionsFromAPI(ctx context.Context, api *ActionsAPIModel) types.Object {
+// TaskActionsFromAPI converts an API actions model to the Terraform `actions`
+// object. prior is the actions value from the plan/prior state (i.e.
+// data.Actions as it stood before this call) and is used only to reorder
+// each sub-list to match what was submitted, since the UAC API does not
+// preserve submission order for these list-typed attributes (see
+// reorderToMatchPrior).
+func TaskActionsFromAPI(ctx context.Context, api *ActionsAPIModel, prior types.Object) types.Object {
 	// The API always returns an "actions" object, even when nothing is
 	// configured (its sub-lists are simply empty in that case). Treat that
 	// as equivalent to no actions at all so that an unconfigured `actions`
@@ -1278,12 +1318,23 @@ func TaskActionsFromAPI(ctx context.Context, api *ActionsAPIModel) types.Object 
 		return types.ObjectNull(ActionsAttrTypes())
 	}
 
+	priorModel := ActionsModel{
+		SystemOperations:   types.ListNull(types.ObjectType{AttrTypes: systemOperationAttrTypes()}),
+		EmailNotifications: types.ListNull(types.ObjectType{AttrTypes: emailNotificationAttrTypes()}),
+		AbortActions:       types.ListNull(types.ObjectType{AttrTypes: abortActionAttrTypes()}),
+		SetVariableActions: types.ListNull(types.ObjectType{AttrTypes: setVariableActionAttrTypes()}),
+		SnmpNotifications:  types.ListNull(types.ObjectType{AttrTypes: snmpNotificationAttrTypes()}),
+	}
+	if !prior.IsNull() && !prior.IsUnknown() {
+		prior.As(ctx, &priorModel, basetypes.ObjectAsOptions{})
+	}
+
 	obj, _ := types.ObjectValue(ActionsAttrTypes(), map[string]attr.Value{
-		"system_operations":    systemOperationsFromAPI(ctx, api.SystemOperations),
-		"email_notifications":  emailNotificationsFromAPI(ctx, api.EmailNotifications),
-		"abort_actions":        abortActionsFromAPI(api.AbortActions),
-		"set_variable_actions": setVariableActionsFromAPI(api.SetVariableActions),
-		"snmp_notifications":   snmpNotificationsFromAPI(api.SnmpNotifications),
+		"system_operations":    systemOperationsFromAPIOrdered(ctx, api.SystemOperations, priorModel.SystemOperations),
+		"email_notifications":  emailNotificationsFromAPIOrdered(ctx, api.EmailNotifications, priorModel.EmailNotifications),
+		"abort_actions":        abortActionsFromAPIOrdered(ctx, api.AbortActions, priorModel.AbortActions),
+		"set_variable_actions": setVariableActionsFromAPIOrdered(ctx, api.SetVariableActions, priorModel.SetVariableActions),
+		"snmp_notifications":   snmpNotificationsFromAPIOrdered(ctx, api.SnmpNotifications, priorModel.SnmpNotifications),
 	})
 	return obj
 }

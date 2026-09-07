@@ -605,7 +605,7 @@ func (r *TaskUnixResource) fromAPIModel(ctx context.Context, apiModel *TaskAPIMo
 	data.RunAsSudo = types.BoolValue(apiModel.RunAsSudo)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
@@ -613,7 +613,7 @@ func (r *TaskUnixResource) fromAPIModel(ctx context.Context, apiModel *TaskAPIMo
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

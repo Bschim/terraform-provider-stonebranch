@@ -585,7 +585,7 @@ func (r *TaskRecurringResource) fromAPIModel(ctx context.Context, apiModel *Task
 	data.RdExcludeBackupRt = types.BoolValue(apiModel.RdExcludeBackupRt)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
@@ -593,7 +593,7 @@ func (r *TaskRecurringResource) fromAPIModel(ctx context.Context, apiModel *Task
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {
