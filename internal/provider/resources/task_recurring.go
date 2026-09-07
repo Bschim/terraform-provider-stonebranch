@@ -73,6 +73,17 @@ type TaskRecurringResourceModel struct {
 	RetentionDurationPurgeRt types.Bool   `tfsdk:"retention_duration_purge_rt"`
 	RdExcludeBackupRt        types.Bool   `tfsdk:"rd_exclude_backup_rt"`
 
+	// Wait/Delay options
+	WaitToStart       types.String `tfsdk:"wait_to_start"`
+	WaitTime          types.String `tfsdk:"wait_time"`
+	WaitDuration      types.String `tfsdk:"wait_duration"`
+	WaitAmount        types.String `tfsdk:"wait_amount"`
+	WaitDayConstraint types.String `tfsdk:"wait_day_constraint"`
+	DelayOnStart      types.String `tfsdk:"delay_on_start"`
+	DelayDuration     types.String `tfsdk:"delay_duration"`
+	DelayAmount       types.String `tfsdk:"delay_amount"`
+	WorkflowOnly      types.String `tfsdk:"workflow_only"`
+
 	// Variables
 	Variables types.List `tfsdk:"variables"`
 
@@ -119,6 +130,17 @@ type TaskRecurringAPIModel struct {
 	RetentionDurationUnitRt  string `json:"retentionDurationUnitRt,omitempty"`
 	RetentionDurationPurgeRt bool   `json:"retentionDurationPurgeRt,omitempty"`
 	RdExcludeBackupRt        bool   `json:"rdExcludeBackupRt,omitempty"`
+
+	// Wait/Delay options
+	WaitToStart       string `json:"twWaitType,omitempty"`
+	WaitTime          string `json:"twWaitTime,omitempty"`
+	WaitDuration      string `json:"twWaitDuration,omitempty"`
+	WaitAmount        string `json:"twWaitAmount,omitempty"`
+	WaitDayConstraint string `json:"twWaitDayConstraint,omitempty"`
+	DelayOnStart      string `json:"twDelayType,omitempty"`
+	DelayDuration     string `json:"twDelayDuration,omitempty"`
+	DelayAmount       string `json:"twDelayAmount,omitempty"`
+	WorkflowOnly      string `json:"twWorkflowOnly,omitempty"`
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
@@ -260,6 +282,17 @@ func (r *TaskRecurringResource) Schema(ctx context.Context, req resource.SchemaR
 				Computed:            true,
 			},
 
+			// Wait/Delay options
+			"wait_to_start":       TaskWaitToStartSchema(),
+			"wait_time":           TaskWaitTimeSchema(),
+			"wait_duration":       TaskWaitDurationSchema(),
+			"wait_amount":         TaskWaitAmountSchema(),
+			"wait_day_constraint": TaskWaitDayConstraintSchema(),
+			"delay_on_start":      TaskDelayOnStartSchema(),
+			"delay_duration":      TaskDelayDurationSchema(),
+			"delay_amount":        TaskDelayAmountSchema(),
+			"workflow_only":       TaskWorkflowOnlySchema(),
+
 			// Variables
 			"variables": TaskVariablesSchema(),
 
@@ -348,6 +381,8 @@ func (r *TaskRecurringResource) ValidateConfig(ctx context.Context, req resource
 			`"number_of_recurrences" is required when "time_window" is false and "indefinite_recurrences" is false.`,
 		)
 	}
+
+	resp.Diagnostics.Append(ValidateTaskWaitDelay(data.WaitToStart, data.WaitAmount, data.DelayOnStart, data.DelayAmount)...)
 }
 
 func (r *TaskRecurringResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -531,6 +566,17 @@ func (r *TaskRecurringResource) toAPIModel(ctx context.Context, data *TaskRecurr
 		RetentionDurationUnitRt:  StringValueOrDefault(data.RetentionDurationUnitRt, "Days"),
 		RetentionDurationPurgeRt: data.RetentionDurationPurgeRt.ValueBool(),
 		RdExcludeBackupRt:        data.RdExcludeBackupRt.ValueBool(),
+
+		// Wait/Delay options
+		WaitToStart:       data.WaitToStart.ValueString(),
+		WaitTime:          data.WaitTime.ValueString(),
+		WaitDuration:      data.WaitDuration.ValueString(),
+		WaitAmount:        data.WaitAmount.ValueString(),
+		WaitDayConstraint: data.WaitDayConstraint.ValueString(),
+		DelayOnStart:      data.DelayOnStart.ValueString(),
+		DelayDuration:     data.DelayDuration.ValueString(),
+		DelayAmount:       data.DelayAmount.ValueString(),
+		WorkflowOnly:      data.WorkflowOnly.ValueString(),
 	}
 
 	model.Variables = TaskVariablesToAPI(ctx, data.Variables)
@@ -583,6 +629,17 @@ func (r *TaskRecurringResource) fromAPIModel(ctx context.Context, apiModel *Task
 	data.RetentionDurationUnitRt = types.StringValue(apiModel.RetentionDurationUnitRt)
 	data.RetentionDurationPurgeRt = types.BoolValue(apiModel.RetentionDurationPurgeRt)
 	data.RdExcludeBackupRt = types.BoolValue(apiModel.RdExcludeBackupRt)
+
+	// Wait/Delay options - always returned by API
+	data.WaitToStart = types.StringValue(apiModel.WaitToStart)
+	data.WaitTime = types.StringValue(apiModel.WaitTime)
+	data.WaitDuration = types.StringValue(apiModel.WaitDuration)
+	data.WaitAmount = types.StringValue(apiModel.WaitAmount)
+	data.WaitDayConstraint = types.StringValue(apiModel.WaitDayConstraint)
+	data.DelayOnStart = types.StringValue(apiModel.DelayOnStart)
+	data.DelayDuration = types.StringValue(apiModel.DelayDuration)
+	data.DelayAmount = types.StringValue(apiModel.DelayAmount)
+	data.WorkflowOnly = types.StringValue(apiModel.WorkflowOnly)
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)

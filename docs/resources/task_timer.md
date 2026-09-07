@@ -99,16 +99,26 @@ resource "stonebranch_task_timer" "configurable_delay" {
 ### Optional
 
 - `actions` (Attributes) Actions to trigger based on the task's status or exit code: launching/controlling other tasks, sending email or SNMP notifications, or setting variables. (see [below for nested schema](#nestedatt--actions))
+- `delay_amount` (String) Number of seconds to delay before starting. Required when `delay_on_start` is `Seconds`.
+- `delay_duration` (String) Duration to delay before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `delay_on_start` is `Duration`.
+- `delay_on_start` (String) Determines whether the task delays once it becomes eligible to start. Valid values: `None`, `Duration` (delay for a fixed duration), `Seconds` (delay for a number of seconds). Defaults to `None`.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
 - `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `opswise_groups` (List of String) List of business service names this task belongs to.
+- `sleep_amount` (String) Number of seconds to wait. Required when `sleep_type` is `Seconds`. Example: `30`.
 - `sleep_day_constraint` (String) Day constraint for time-based delays. Valid values: `None`, `Same Day`, `Next Day`, `Next Business Day`, `Next Non-business Day`, `Sunday`, `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`. Defaults to `None`.
 - `sleep_duration` (String) Duration to wait in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Required when `sleep_type` is `Duration`. Example: `00:00:00:30` for 30 seconds, `00:01:30:00` for 1 hour 30 minutes.
 - `sleep_time` (String) Time to wait until in `HH:MM` format (24-hour). Used when `sleep_type` is `Time` or `Relative Time`. Example: `14:30` for 2:30 PM.
-- `sleep_type` (String) Type of timer delay. Valid values: `Duration` (wait for a duration), `Time` (wait until a specific time), `Relative Time` (wait until a time relative to task start). Defaults to `Duration`.
+- `sleep_type` (String) Type of timer delay. Valid values: `Duration` (wait for a duration), `Seconds` (wait for a number of seconds), `Time` (wait until a specific time), `Relative Time` (wait until a time relative to task start). Defaults to `Duration`.
 - `summary` (String) Summary/description of the task.
 - `variables` (Attributes List) List of task variables. These variables are scoped to the task and can be referenced using `${variable_name}` syntax. (see [below for nested schema](#nestedatt--variables))
 - `virtual_resources` (Attributes List) List of virtual resources consumed by this task during execution. (see [below for nested schema](#nestedatt--virtual_resources))
+- `wait_amount` (String) Number of seconds to wait before starting. Required when `wait_to_start` is `Seconds`.
+- `wait_day_constraint` (String) Day constraint applied to the time-based wait. Valid values: `None`, `Same Day`, `Next Day`, `Next Business Day`, `Sunday`, `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`. Defaults to `None`.
+- `wait_duration` (String) Duration to wait before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `wait_to_start` is `Duration`.
+- `wait_time` (String) Time to wait until, in `HH:MM` format (24-hour). Used when `wait_to_start` is `Time` or `Relative Time`.
+- `wait_to_start` (String) Determines whether the task must wait before it is eligible to start. Valid values: `None`, `Time` (wait until a specific time), `Duration` (wait for a fixed duration), `Seconds` (wait for a number of seconds), `Relative Time` (wait until a time relative to the task becoming eligible to run). Defaults to `None`.
+- `workflow_only` (String) Controls whether the wait/delay options only apply when this task runs within a workflow. Valid values: `System Default`, `Yes`, `No`. Defaults to `System Default`.
 
 ### Read-Only
 

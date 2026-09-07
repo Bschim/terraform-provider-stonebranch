@@ -21,8 +21,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TaskWorkflowResource{}
-	_ resource.ResourceWithImportState = &TaskWorkflowResource{}
+	_ resource.Resource                   = &TaskWorkflowResource{}
+	_ resource.ResourceWithImportState    = &TaskWorkflowResource{}
+	_ resource.ResourceWithValidateConfig = &TaskWorkflowResource{}
 )
 
 func NewTaskWorkflowResource() resource.Resource {
@@ -65,6 +66,17 @@ type TaskWorkflowResourceModel struct {
 	RetryIndefinitely    types.Bool  `tfsdk:"retry_indefinitely"`
 	RetryInterval        types.Int64 `tfsdk:"retry_interval"`
 	RetrySuppressFailure types.Bool  `tfsdk:"retry_suppress_failure"`
+
+	// Wait/Delay options
+	WaitToStart       types.String `tfsdk:"wait_to_start"`
+	WaitTime          types.String `tfsdk:"wait_time"`
+	WaitDuration      types.String `tfsdk:"wait_duration"`
+	WaitAmount        types.String `tfsdk:"wait_amount"`
+	WaitDayConstraint types.String `tfsdk:"wait_day_constraint"`
+	DelayOnStart      types.String `tfsdk:"delay_on_start"`
+	DelayDuration     types.String `tfsdk:"delay_duration"`
+	DelayAmount       types.String `tfsdk:"delay_amount"`
+	WorkflowOnly      types.String `tfsdk:"workflow_only"`
 
 	// Variables
 	Variables types.List `tfsdk:"variables"`
@@ -110,6 +122,17 @@ type TaskWorkflowAPIModel struct {
 	RetryIndefinitely    bool  `json:"retryIndefinitely,omitempty"`
 	RetryInterval        int64 `json:"retryInterval,omitempty"`
 	RetrySuppressFailure bool  `json:"retrySuppressFailure,omitempty"`
+
+	// Wait/Delay options
+	WaitToStart       string `json:"twWaitType,omitempty"`
+	WaitTime          string `json:"twWaitTime,omitempty"`
+	WaitDuration      string `json:"twWaitDuration,omitempty"`
+	WaitAmount        string `json:"twWaitAmount,omitempty"`
+	WaitDayConstraint string `json:"twWaitDayConstraint,omitempty"`
+	DelayOnStart      string `json:"twDelayType,omitempty"`
+	DelayDuration     string `json:"twDelayDuration,omitempty"`
+	DelayAmount       string `json:"twDelayAmount,omitempty"`
+	WorkflowOnly      string `json:"twWorkflowOnly,omitempty"`
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
@@ -255,6 +278,17 @@ func (r *TaskWorkflowResource) Schema(ctx context.Context, req resource.SchemaRe
 				Computed:            true,
 			},
 
+			// Wait/Delay options
+			"wait_to_start":       TaskWaitToStartSchema(),
+			"wait_time":           TaskWaitTimeSchema(),
+			"wait_duration":       TaskWaitDurationSchema(),
+			"wait_amount":         TaskWaitAmountSchema(),
+			"wait_day_constraint": TaskWaitDayConstraintSchema(),
+			"delay_on_start":      TaskDelayOnStartSchema(),
+			"delay_duration":      TaskDelayDurationSchema(),
+			"delay_amount":        TaskDelayAmountSchema(),
+			"workflow_only":       TaskWorkflowOnlySchema(),
+
 			// Variables
 			"variables": TaskVariablesSchema(),
 
@@ -283,6 +317,16 @@ func (r *TaskWorkflowResource) Schema(ctx context.Context, req resource.SchemaRe
 			},
 		},
 	}
+}
+
+func (r *TaskWorkflowResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data TaskWorkflowResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(ValidateTaskWaitDelay(data.WaitToStart, data.WaitAmount, data.DelayOnStart, data.DelayAmount)...)
 }
 
 func (r *TaskWorkflowResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -548,6 +592,17 @@ func (r *TaskWorkflowResource) toAPIModel(ctx context.Context, data *TaskWorkflo
 		model.RetrySuppressFailure = data.RetrySuppressFailure.ValueBool()
 	}
 
+	// Wait/Delay options
+	model.WaitToStart = data.WaitToStart.ValueString()
+	model.WaitTime = data.WaitTime.ValueString()
+	model.WaitDuration = data.WaitDuration.ValueString()
+	model.WaitAmount = data.WaitAmount.ValueString()
+	model.WaitDayConstraint = data.WaitDayConstraint.ValueString()
+	model.DelayOnStart = data.DelayOnStart.ValueString()
+	model.DelayDuration = data.DelayDuration.ValueString()
+	model.DelayAmount = data.DelayAmount.ValueString()
+	model.WorkflowOnly = data.WorkflowOnly.ValueString()
+
 	// Handle variables
 	model.Variables = TaskVariablesToAPI(ctx, data.Variables)
 
@@ -607,6 +662,17 @@ func (r *TaskWorkflowResource) fromAPIModel(ctx context.Context, apiModel *TaskW
 	data.RetryIndefinitely = types.BoolValue(apiModel.RetryIndefinitely)
 	data.RetryInterval = types.Int64Value(apiModel.RetryInterval)
 	data.RetrySuppressFailure = types.BoolValue(apiModel.RetrySuppressFailure)
+
+	// Wait/Delay options - always returned by API
+	data.WaitToStart = types.StringValue(apiModel.WaitToStart)
+	data.WaitTime = types.StringValue(apiModel.WaitTime)
+	data.WaitDuration = types.StringValue(apiModel.WaitDuration)
+	data.WaitAmount = types.StringValue(apiModel.WaitAmount)
+	data.WaitDayConstraint = types.StringValue(apiModel.WaitDayConstraint)
+	data.DelayOnStart = types.StringValue(apiModel.DelayOnStart)
+	data.DelayDuration = types.StringValue(apiModel.DelayDuration)
+	data.DelayAmount = types.StringValue(apiModel.DelayAmount)
+	data.WorkflowOnly = types.StringValue(apiModel.WorkflowOnly)
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
