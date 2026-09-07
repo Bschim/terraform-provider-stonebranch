@@ -776,7 +776,7 @@ func (r *TaskWebServiceResource) fromAPIModel(ctx context.Context, apiModel *Tas
 	data.RetrySuppressFailure = types.BoolValue(apiModel.RetrySuppressFailure)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
@@ -784,7 +784,7 @@ func (r *TaskWebServiceResource) fromAPIModel(ctx context.Context, apiModel *Tas
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// URL parameters
 	if len(apiModel.UrlParameters) > 0 {

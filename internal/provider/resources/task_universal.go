@@ -843,7 +843,7 @@ func (r *TaskUniversalResource) fromAPIModel(ctx context.Context, apiModel *Task
 	data.ScriptVarField2 = StringValueOrNull(getFieldStringValue(apiModel.ScriptVarField2))
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
@@ -851,7 +851,7 @@ func (r *TaskUniversalResource) fromAPIModel(ctx context.Context, apiModel *Task
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

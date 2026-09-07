@@ -421,7 +421,7 @@ func (r *TriggerTaskMonitorResource) fromAPIModel(ctx context.Context, apiModel 
 	}
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

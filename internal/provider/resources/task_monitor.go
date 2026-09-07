@@ -573,7 +573,7 @@ func (r *TaskMonitorResource) fromAPIModel(ctx context.Context, apiModel *TaskMo
 	data.RetrySuppressFailure = types.BoolValue(apiModel.RetrySuppressFailure)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
@@ -581,7 +581,7 @@ func (r *TaskMonitorResource) fromAPIModel(ctx context.Context, apiModel *TaskMo
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {

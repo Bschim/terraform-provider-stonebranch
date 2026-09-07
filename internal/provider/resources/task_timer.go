@@ -439,7 +439,7 @@ func (r *TaskTimerResource) fromAPIModel(ctx context.Context, apiModel *TaskTime
 	data.SleepDayConstraint = types.StringValue(apiModel.SleepDayConstraint)
 
 	// Handle variables
-	data.Variables = TaskVariablesFromAPI(ctx, apiModel.Variables)
+	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
 
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
@@ -447,7 +447,7 @@ func (r *TaskTimerResource) fromAPIModel(ctx context.Context, apiModel *TaskTime
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
-	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions)
+	data.Actions = TaskActionsFromAPI(ctx, apiModel.Actions, data.Actions)
 
 	// Handle opswise_groups
 	if len(apiModel.OpswiseGroups) > 0 {
