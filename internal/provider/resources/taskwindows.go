@@ -19,8 +19,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TaskWindowsResource{}
-	_ resource.ResourceWithImportState = &TaskWindowsResource{}
+	_ resource.Resource                   = &TaskWindowsResource{}
+	_ resource.ResourceWithImportState    = &TaskWindowsResource{}
+	_ resource.ResourceWithValidateConfig = &TaskWindowsResource{}
 )
 
 func NewTaskWindowsResource() resource.Resource {
@@ -83,6 +84,17 @@ type TaskWindowsResourceModel struct {
 	DesktopInteract types.Bool `tfsdk:"desktop_interact"`
 	CreateConsole   types.Bool `tfsdk:"create_console"`
 
+	// Wait/Delay options
+	WaitToStart       types.String `tfsdk:"wait_to_start"`
+	WaitTime          types.String `tfsdk:"wait_time"`
+	WaitDuration      types.String `tfsdk:"wait_duration"`
+	WaitAmount        types.String `tfsdk:"wait_amount"`
+	WaitDayConstraint types.String `tfsdk:"wait_day_constraint"`
+	DelayOnStart      types.String `tfsdk:"delay_on_start"`
+	DelayDuration     types.String `tfsdk:"delay_duration"`
+	DelayAmount       types.String `tfsdk:"delay_amount"`
+	WorkflowOnly      types.String `tfsdk:"workflow_only"`
+
 	// Variables
 	Variables types.List `tfsdk:"variables"`
 
@@ -132,6 +144,17 @@ type TaskWindowsAPIModel struct {
 	ElevateUser     bool `json:"elevateUser,omitempty"`
 	DesktopInteract bool `json:"desktopInteract,omitempty"`
 	CreateConsole   bool `json:"createConsole,omitempty"`
+
+	// Wait/Delay options
+	WaitToStart       string `json:"twWaitType,omitempty"`
+	WaitTime          string `json:"twWaitTime,omitempty"`
+	WaitDuration      string `json:"twWaitDuration,omitempty"`
+	WaitAmount        string `json:"twWaitAmount,omitempty"`
+	WaitDayConstraint string `json:"twWaitDayConstraint,omitempty"`
+	DelayOnStart      string `json:"twDelayType,omitempty"`
+	DelayDuration     string `json:"twDelayDuration,omitempty"`
+	DelayAmount       string `json:"twDelayAmount,omitempty"`
+	WorkflowOnly      string `json:"twWorkflowOnly,omitempty"`
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
@@ -308,6 +331,17 @@ func (r *TaskWindowsResource) Schema(ctx context.Context, req resource.SchemaReq
 				Computed:            true,
 			},
 
+			// Wait/Delay options
+			"wait_to_start":       TaskWaitToStartSchema(),
+			"wait_time":           TaskWaitTimeSchema(),
+			"wait_duration":       TaskWaitDurationSchema(),
+			"wait_amount":         TaskWaitAmountSchema(),
+			"wait_day_constraint": TaskWaitDayConstraintSchema(),
+			"delay_on_start":      TaskDelayOnStartSchema(),
+			"delay_duration":      TaskDelayDurationSchema(),
+			"delay_amount":        TaskDelayAmountSchema(),
+			"workflow_only":       TaskWorkflowOnlySchema(),
+
 			// Variables
 			"variables": TaskVariablesSchema(),
 
@@ -319,6 +353,16 @@ func (r *TaskWindowsResource) Schema(ctx context.Context, req resource.SchemaReq
 			},
 		},
 	}
+}
+
+func (r *TaskWindowsResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data TaskWindowsResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(ValidateTaskWaitDelay(data.WaitToStart, data.WaitAmount, data.DelayOnStart, data.DelayAmount)...)
 }
 
 func (r *TaskWindowsResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -540,6 +584,17 @@ func (r *TaskWindowsResource) toAPIModel(ctx context.Context, data *TaskWindowsR
 		ElevateUser:     data.ElevateUser.ValueBool(),
 		DesktopInteract: data.DesktopInteract.ValueBool(),
 		CreateConsole:   data.CreateConsole.ValueBool(),
+
+		// Wait/Delay options
+		WaitToStart:       data.WaitToStart.ValueString(),
+		WaitTime:          data.WaitTime.ValueString(),
+		WaitDuration:      data.WaitDuration.ValueString(),
+		WaitAmount:        data.WaitAmount.ValueString(),
+		WaitDayConstraint: data.WaitDayConstraint.ValueString(),
+		DelayOnStart:      data.DelayOnStart.ValueString(),
+		DelayDuration:     data.DelayDuration.ValueString(),
+		DelayAmount:       data.DelayAmount.ValueString(),
+		WorkflowOnly:      data.WorkflowOnly.ValueString(),
 	}
 
 	// Handle variables
@@ -596,6 +651,17 @@ func (r *TaskWindowsResource) fromAPIModel(ctx context.Context, apiModel *TaskWi
 	data.ElevateUser = types.BoolValue(apiModel.ElevateUser)
 	data.DesktopInteract = types.BoolValue(apiModel.DesktopInteract)
 	data.CreateConsole = types.BoolValue(apiModel.CreateConsole)
+
+	// Wait/Delay options - always returned by API
+	data.WaitToStart = types.StringValue(apiModel.WaitToStart)
+	data.WaitTime = types.StringValue(apiModel.WaitTime)
+	data.WaitDuration = types.StringValue(apiModel.WaitDuration)
+	data.WaitAmount = types.StringValue(apiModel.WaitAmount)
+	data.WaitDayConstraint = types.StringValue(apiModel.WaitDayConstraint)
+	data.DelayOnStart = types.StringValue(apiModel.DelayOnStart)
+	data.DelayDuration = types.StringValue(apiModel.DelayDuration)
+	data.DelayAmount = types.StringValue(apiModel.DelayAmount)
+	data.WorkflowOnly = types.StringValue(apiModel.WorkflowOnly)
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)

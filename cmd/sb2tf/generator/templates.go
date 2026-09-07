@@ -67,6 +67,7 @@ func registerTemplate(name, tmpl string) {
 	// harmless for the ones that don't.
 	template.Must(t.Parse(actionsTemplateDefs))
 	template.Must(t.Parse(taskVariablesTemplateDefs))
+	template.Must(t.Parse(taskWaitDelayTemplateDefs))
 	templates[name] = template.Must(t.Parse(tmpl))
 }
 
@@ -587,6 +588,42 @@ const taskVariablesTemplateDefs = `
 {{end}}
 `
 
+// taskWaitDelayTemplateDefs is shared by every task_* resource template -
+// they all embed the same wait_to_start/delay_on_start fields
+// (task_common_fields.go), backed by the same "tw*"-prefixed raw JSON keys
+// on every task API model.
+const taskWaitDelayTemplateDefs = `
+{{define "task_wait_delay_block"}}
+{{- if notEmpty .twWaitType}}
+  wait_to_start = "{{quote .twWaitType}}"
+{{- end}}
+{{- if notEmpty .twWaitTime}}
+  wait_time = "{{quote .twWaitTime}}"
+{{- end}}
+{{- if notEmpty .twWaitDuration}}
+  wait_duration = "{{quote .twWaitDuration}}"
+{{- end}}
+{{- if notEmpty .twWaitAmount}}
+  wait_amount = "{{quote .twWaitAmount}}"
+{{- end}}
+{{- if notEmpty .twWaitDayConstraint}}
+  wait_day_constraint = "{{quote .twWaitDayConstraint}}"
+{{- end}}
+{{- if notEmpty .twDelayType}}
+  delay_on_start = "{{quote .twDelayType}}"
+{{- end}}
+{{- if notEmpty .twDelayDuration}}
+  delay_duration = "{{quote .twDelayDuration}}"
+{{- end}}
+{{- if notEmpty .twDelayAmount}}
+  delay_amount = "{{quote .twDelayAmount}}"
+{{- end}}
+{{- if notEmpty .twWorkflowOnly}}
+  workflow_only = "{{quote .twWorkflowOnly}}"
+{{- end}}
+{{end}}
+`
+
 // ============================================================================
 // Simple Resources
 // ============================================================================
@@ -836,6 +873,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if isTrue .runAsSudo}}
   run_as_sudo = true
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -905,6 +943,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if isTrue .createConsole}}
   create_console = true
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -935,6 +974,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .columnValue}}
   column_value = "{{quote .columnValue}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -983,6 +1023,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .body}}
   body = "{{quote .body}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1016,6 +1057,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .layoutOption}}
   layout_option = "{{quote .layoutOption}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1070,6 +1112,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .credentials}}
   credentials = "{{quote .credentials}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1214,6 +1257,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .command}}
   command = "{{quote .command}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1247,6 +1291,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .sleepDayConstraint}}
   sleep_day_constraint = "{{quote .sleepDayConstraint}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1289,6 +1334,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if isTrue .monitorEarlyFinish}}
   monitor_early_finish = true
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1325,6 +1371,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .resultProcessing}}
   result_processing = "{{quote .resultProcessing}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1376,6 +1423,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if isTrue .insecure}}
   insecure = true
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1404,6 +1452,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
   credentials = "{{quote .credentials}}"
 {{- end}}
   # Note: Universal task template fields may require manual adjustment
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1477,6 +1526,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if isTrue .holdResources}}
   hold_resources = true
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}
@@ -1678,6 +1728,7 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if fieldSet .scriptVarField2}}
   script_var_field_2 = "{{quote .scriptVarField2.value}}"
 {{- end}}
+{{template "task_wait_delay_block" .}}
 {{- if notEmpty .opswiseGroups}}
   opswise_groups = [{{stringList .opswiseGroups}}]
 {{- end}}

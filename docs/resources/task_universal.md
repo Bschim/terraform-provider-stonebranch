@@ -55,6 +55,9 @@ Manages a generic StoneBranch Universal Task. Unlike template-specific resources
 - `credentials_var` (String) Variable containing the credentials name.
 - `custom_field_1` (String) Value of the Universal Template's Custom Field 1 slot.
 - `custom_field_2` (String) Value of the Universal Template's Custom Field 2 slot.
+- `delay_amount` (String) Number of seconds to delay before starting. Required when `delay_on_start` is `Seconds`.
+- `delay_duration` (String) Duration to delay before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `delay_on_start` is `Duration`.
+- `delay_on_start` (String) Determines whether the task delays once it becomes eligible to start. Valid values: `None`, `Duration` (delay for a fixed duration), `Seconds` (delay for a number of seconds). Defaults to `None`.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
 - `exit_code_processing` (String) How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.
 - `exit_code_text` (String) Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.
@@ -86,6 +89,12 @@ Manages a generic StoneBranch Universal Task. Unlike template-specific resources
 - `text_field_9` (String) Value of the Universal Template's Text Field 9 slot.
 - `variables` (Attributes List) List of task variables. These variables are scoped to the task and can be referenced using `${variable_name}` syntax. (see [below for nested schema](#nestedatt--variables))
 - `virtual_resources` (Attributes List) List of virtual resources consumed by this task during execution. (see [below for nested schema](#nestedatt--virtual_resources))
+- `wait_amount` (String) Number of seconds to wait before starting. Required when `wait_to_start` is `Seconds`.
+- `wait_day_constraint` (String) Day constraint applied to the time-based wait. Valid values: `None`, `Same Day`, `Next Day`, `Next Business Day`, `Sunday`, `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`. Defaults to `None`.
+- `wait_duration` (String) Duration to wait before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `wait_to_start` is `Duration`.
+- `wait_time` (String) Time to wait until, in `HH:MM` format (24-hour). Used when `wait_to_start` is `Time` or `Relative Time`.
+- `wait_to_start` (String) Determines whether the task must wait before it is eligible to start. Valid values: `None`, `Time` (wait until a specific time), `Duration` (wait for a fixed duration), `Seconds` (wait for a number of seconds), `Relative Time` (wait until a time relative to the task becoming eligible to run). Defaults to `None`.
+- `workflow_only` (String) Controls whether the wait/delay options only apply when this task runs within a workflow. Valid values: `System Default`, `Yes`, `No`. Defaults to `System Default`.
 
 ### Read-Only
 

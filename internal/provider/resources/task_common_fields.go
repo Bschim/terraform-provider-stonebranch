@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -172,4 +174,115 @@ func TaskVirtualResourcesFromAPI(apiItems []TaskVirtualResourceAPIModel) types.L
 	}
 	result, _ := types.ListValue(types.ObjectType{AttrTypes: TaskVirtualResourceAttrTypes()}, values)
 	return result
+}
+
+// TaskWaitToStartSchema returns the schema for the wait_to_start attribute.
+func TaskWaitToStartSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Determines whether the task must wait before it is eligible to start. Valid values: `None`, `Time` (wait until a specific time), `Duration` (wait for a fixed duration), `Seconds` (wait for a number of seconds), `Relative Time` (wait until a time relative to the task becoming eligible to run). Defaults to `None`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskWaitTimeSchema returns the schema for the wait_time attribute.
+func TaskWaitTimeSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Time to wait until, in `HH:MM` format (24-hour). Used when `wait_to_start` is `Time` or `Relative Time`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskWaitDurationSchema returns the schema for the wait_duration attribute.
+func TaskWaitDurationSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Duration to wait before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `wait_to_start` is `Duration`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskWaitAmountSchema returns the schema for the wait_amount attribute.
+func TaskWaitAmountSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Number of seconds to wait before starting. Required when `wait_to_start` is `Seconds`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskWaitDayConstraintSchema returns the schema for the wait_day_constraint attribute.
+func TaskWaitDayConstraintSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Day constraint applied to the time-based wait. Valid values: `None`, `Same Day`, `Next Day`, `Next Business Day`, `Sunday`, `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`. Defaults to `None`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskDelayOnStartSchema returns the schema for the delay_on_start attribute.
+func TaskDelayOnStartSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Determines whether the task delays once it becomes eligible to start. Valid values: `None`, `Duration` (delay for a fixed duration), `Seconds` (delay for a number of seconds). Defaults to `None`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskDelayDurationSchema returns the schema for the delay_duration attribute.
+func TaskDelayDurationSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Duration to delay before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `delay_on_start` is `Duration`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskDelayAmountSchema returns the schema for the delay_amount attribute.
+func TaskDelayAmountSchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Number of seconds to delay before starting. Required when `delay_on_start` is `Seconds`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// TaskWorkflowOnlySchema returns the schema for the workflow_only attribute.
+func TaskWorkflowOnlySchema() schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Controls whether the wait/delay options only apply when this task runs within a workflow. Valid values: `System Default`, `Yes`, `No`. Defaults to `System Default`.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
+// ValidateTaskWaitDelay validates the cross-field requirements for the shared
+// wait/delay options: when wait_to_start or delay_on_start is "Seconds", the
+// corresponding *_amount field must be set. Deferred to the server if the
+// relevant fields are unknown (e.g. computed from another resource).
+func ValidateTaskWaitDelay(waitToStart, waitAmount, delayOnStart, delayAmount types.String) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if !waitToStart.IsUnknown() && waitToStart.ValueString() == "Seconds" {
+		if !isSet(waitAmount) && !waitAmount.IsUnknown() {
+			diags.AddAttributeError(
+				path.Root("wait_amount"),
+				"Missing Required Field",
+				`"wait_amount" must be set when "wait_to_start" is "Seconds".`,
+			)
+		}
+	}
+
+	if !delayOnStart.IsUnknown() && delayOnStart.ValueString() == "Seconds" {
+		if !isSet(delayAmount) && !delayAmount.IsUnknown() {
+			diags.AddAttributeError(
+				path.Root("delay_amount"),
+				"Missing Required Field",
+				`"delay_amount" must be set when "delay_on_start" is "Seconds".`,
+			)
+		}
+	}
+
+	return diags
 }

@@ -101,6 +101,17 @@ type TaskFileTransferResourceModel struct {
 	FormOrScript          types.String `tfsdk:"form_or_script"`
 	Command               types.String `tfsdk:"command"`
 
+	// Wait/Delay options
+	WaitToStart       types.String `tfsdk:"wait_to_start"`
+	WaitTime          types.String `tfsdk:"wait_time"`
+	WaitDuration      types.String `tfsdk:"wait_duration"`
+	WaitAmount        types.String `tfsdk:"wait_amount"`
+	WaitDayConstraint types.String `tfsdk:"wait_day_constraint"`
+	DelayOnStart      types.String `tfsdk:"delay_on_start"`
+	DelayDuration     types.String `tfsdk:"delay_duration"`
+	DelayAmount       types.String `tfsdk:"delay_amount"`
+	WorkflowOnly      types.String `tfsdk:"workflow_only"`
+
 	// Variables
 	Variables types.List `tfsdk:"variables"`
 
@@ -173,6 +184,17 @@ type TaskFileTransferAPIModel struct {
 	Format                string `json:"format,omitempty"`
 	FormOrScript          string `json:"formOrScript,omitempty"`
 	Command               string `json:"command,omitempty"`
+
+	// Wait/Delay options
+	WaitToStart       string `json:"twWaitType,omitempty"`
+	WaitTime          string `json:"twWaitTime,omitempty"`
+	WaitDuration      string `json:"twWaitDuration,omitempty"`
+	WaitAmount        string `json:"twWaitAmount,omitempty"`
+	WaitDayConstraint string `json:"twWaitDayConstraint,omitempty"`
+	DelayOnStart      string `json:"twDelayType,omitempty"`
+	DelayDuration     string `json:"twDelayDuration,omitempty"`
+	DelayAmount       string `json:"twDelayAmount,omitempty"`
+	WorkflowOnly      string `json:"twWorkflowOnly,omitempty"`
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
@@ -417,6 +439,17 @@ func (r *TaskFileTransferResource) Schema(ctx context.Context, req resource.Sche
 				Computed:            true,
 			},
 
+			// Wait/Delay options
+			"wait_to_start":       TaskWaitToStartSchema(),
+			"wait_time":           TaskWaitTimeSchema(),
+			"wait_duration":       TaskWaitDurationSchema(),
+			"wait_amount":         TaskWaitAmountSchema(),
+			"wait_day_constraint": TaskWaitDayConstraintSchema(),
+			"delay_on_start":      TaskDelayOnStartSchema(),
+			"delay_duration":      TaskDelayDurationSchema(),
+			"delay_amount":        TaskDelayAmountSchema(),
+			"workflow_only":       TaskWorkflowOnlySchema(),
+
 			// Variables
 			"variables": TaskVariablesSchema(),
 
@@ -474,6 +507,8 @@ func (r *TaskFileTransferResource) ValidateConfig(ctx context.Context, req resou
 			`"secondary_broker_choice" must be set when "server_type" is "UDM".`,
 		)
 	}
+
+	resp.Diagnostics.Append(ValidateTaskWaitDelay(data.WaitToStart, data.WaitAmount, data.DelayOnStart, data.DelayAmount)...)
 }
 
 func (r *TaskFileTransferResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -710,6 +745,17 @@ func (r *TaskFileTransferResource) toAPIModel(ctx context.Context, data *TaskFil
 		Format:                data.Format.ValueString(),
 		FormOrScript:          data.FormOrScript.ValueString(),
 		Command:               data.Command.ValueString(),
+
+		// Wait/Delay options
+		WaitToStart:       data.WaitToStart.ValueString(),
+		WaitTime:          data.WaitTime.ValueString(),
+		WaitDuration:      data.WaitDuration.ValueString(),
+		WaitAmount:        data.WaitAmount.ValueString(),
+		WaitDayConstraint: data.WaitDayConstraint.ValueString(),
+		DelayOnStart:      data.DelayOnStart.ValueString(),
+		DelayDuration:     data.DelayDuration.ValueString(),
+		DelayAmount:       data.DelayAmount.ValueString(),
+		WorkflowOnly:      data.WorkflowOnly.ValueString(),
 	}
 
 	// Handle variables
@@ -802,6 +848,17 @@ func (r *TaskFileTransferResource) fromAPIModel(ctx context.Context, apiModel *T
 	data.Format = StringValueOrNull(apiModel.Format)
 	data.FormOrScript = StringValueOrNull(apiModel.FormOrScript)
 	data.Command = StringValueOrNull(apiModel.Command)
+
+	// Wait/Delay options - always returned by API
+	data.WaitToStart = types.StringValue(apiModel.WaitToStart)
+	data.WaitTime = types.StringValue(apiModel.WaitTime)
+	data.WaitDuration = types.StringValue(apiModel.WaitDuration)
+	data.WaitAmount = types.StringValue(apiModel.WaitAmount)
+	data.WaitDayConstraint = types.StringValue(apiModel.WaitDayConstraint)
+	data.DelayOnStart = types.StringValue(apiModel.DelayOnStart)
+	data.DelayDuration = types.StringValue(apiModel.DelayDuration)
+	data.DelayAmount = types.StringValue(apiModel.DelayAmount)
+	data.WorkflowOnly = types.StringValue(apiModel.WorkflowOnly)
 
 	// Handle variables
 	data.Variables = TaskVariablesFromAPIOrdered(ctx, apiModel.Variables, data.Variables)
