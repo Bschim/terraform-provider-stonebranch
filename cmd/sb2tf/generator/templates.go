@@ -1922,6 +1922,35 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .dayStyle}}
   day_style = "{{quote .dayStyle}}"
 {{- end}}
+{{- if notEmpty .dayInterval}}
+  day_interval = {{.dayInterval}}
+{{- end}}
+{{- if notEmpty .dateAdjective}}
+  date_adjective = "{{quote .dateAdjective}}"
+{{- end}}
+{{- $dateNoun := wrapperValue . "dateNoun" "dateNouns"}}
+{{- if notEmpty $dateNoun}}
+  date_noun = "{{quote $dateNoun}}"
+{{- end}}
+{{- $dateQualifier := wrapperValue . "dateQualifier" "dateQualifiers"}}
+{{- if notEmpty $dateQualifier}}
+  date_qualifier = "{{quote $dateQualifier}}"
+{{- end}}
+{{- if notEmpty .nthAmount}}
+  nth_amount = {{.nthAmount}}
+{{- end}}
+{{- if notEmpty .dateAdjustment}}
+  date_adjustment = "{{quote .dateAdjustment}}"
+{{- end}}
+{{- if isTrue .adjustInterval}}
+  adjust_interval = true
+{{- end}}
+{{- if notEmpty .adjustmentAmount}}
+  adjustment_amount = {{.adjustmentAmount}}
+{{- end}}
+{{- if notEmpty .adjustmentType}}
+  adjustment_type = "{{quote .adjustmentType}}"
+{{- end}}
 {{- if notEmpty .calendar}}
   calendar = "{{quote .calendar}}"
 {{- end}}

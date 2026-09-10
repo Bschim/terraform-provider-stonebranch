@@ -19,8 +19,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &TriggerTimeResource{}
-	_ resource.ResourceWithImportState = &TriggerTimeResource{}
+	_ resource.Resource                   = &TriggerTimeResource{}
+	_ resource.ResourceWithImportState    = &TriggerTimeResource{}
+	_ resource.ResourceWithValidateConfig = &TriggerTimeResource{}
 )
 
 func NewTriggerTimeResource() resource.Resource {
@@ -56,6 +57,16 @@ type TriggerTimeResourceModel struct {
 	// Day configuration
 	DayStyle    types.String `tfsdk:"day_style"`
 	DayInterval types.Int64  `tfsdk:"day_interval"`
+
+	// Complex date scheduling (when day_style is "Complex")
+	DateAdjective    types.String `tfsdk:"date_adjective"`
+	DateNoun         types.String `tfsdk:"date_noun"`
+	DateQualifier    types.String `tfsdk:"date_qualifier"`
+	NthAmount        types.Int64  `tfsdk:"nth_amount"`
+	DateAdjustment   types.String `tfsdk:"date_adjustment"`
+	AdjustInterval   types.Bool   `tfsdk:"adjust_interval"`
+	AdjustmentAmount types.Int64  `tfsdk:"adjustment_amount"`
+	AdjustmentType   types.String `tfsdk:"adjustment_type"`
 
 	// Day of week flags (for weekly schedules)
 	Sunday    types.Bool `tfsdk:"sunday"`
@@ -96,6 +107,18 @@ type TriggerTimeAPIModel struct {
 
 	DayStyle    string `json:"dayStyle,omitempty"`
 	DayInterval int64  `json:"dayInterval,omitempty"`
+
+	DateAdjective  string                      `json:"dateAdjective,omitempty"`
+	DateNoun       *complexDayWrapperAPIModel  `json:"dateNoun,omitempty"`
+	DateNouns      []complexDayWrapperAPIModel `json:"dateNouns,omitempty"`
+	DateQualifier  *complexDayWrapperAPIModel  `json:"dateQualifier,omitempty"`
+	DateQualifiers []complexDayWrapperAPIModel `json:"dateQualifiers,omitempty"`
+	NthAmount      int64                       `json:"nthAmount,omitempty"`
+
+	DateAdjustment   string `json:"dateAdjustment,omitempty"`
+	AdjustInterval   bool   `json:"adjustInterval,omitempty"`
+	AdjustmentAmount int64  `json:"adjustmentAmount,omitempty"`
+	AdjustmentType   string `json:"adjustmentType,omitempty"`
 
 	Sun bool `json:"sun,omitempty"`
 	Mon bool `json:"mon,omitempty"`
@@ -190,6 +213,48 @@ func (r *TriggerTimeResource) Schema(ctx context.Context, req resource.SchemaReq
 			},
 			"day_interval": schema.Int64Attribute{
 				MarkdownDescription: "Interval between days (when day_style is 'Interval').",
+				Optional:            true,
+				Computed:            true,
+			},
+
+			// Complex date scheduling
+			"date_adjective": schema.StringAttribute{
+				MarkdownDescription: "Complex date adjective (e.g. '1st'). Required when day_style is 'Complex'.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"date_noun": schema.StringAttribute{
+				MarkdownDescription: "Complex date noun (e.g. 'Business Day', 'Day'). Required when day_style is 'Complex'.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"date_qualifier": schema.StringAttribute{
+				MarkdownDescription: "Complex date qualifier (e.g. 'Week', 'Month'). Required when day_style is 'Complex'.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"nth_amount": schema.Int64Attribute{
+				MarkdownDescription: "Nth-occurrence amount for complex date scheduling. Required when day_style is 'Complex'.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"date_adjustment": schema.StringAttribute{
+				MarkdownDescription: "Calendar adjustment applied to the computed complex date (e.g. 'None').",
+				Optional:            true,
+				Computed:            true,
+			},
+			"adjust_interval": schema.BoolAttribute{
+				MarkdownDescription: "Whether to adjust the complex date by adjustment_amount/adjustment_type.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"adjustment_amount": schema.Int64Attribute{
+				MarkdownDescription: "Amount to adjust the complex date by (when adjust_interval is true).",
+				Optional:            true,
+				Computed:            true,
+			},
+			"adjustment_type": schema.StringAttribute{
+				MarkdownDescription: "Unit for adjustment_amount (e.g. 'Day').",
 				Optional:            true,
 				Computed:            true,
 			},
@@ -409,6 +474,41 @@ func (r *TriggerTimeResource) ImportState(ctx context.Context, req resource.Impo
 	resource.ImportStatePassthroughID(ctx, path.Root("name"), req, resp)
 }
 
+func (r *TriggerTimeResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data TriggerTimeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.DayStyle.IsUnknown() || data.DayStyle.ValueString() != "Complex" {
+		return
+	}
+
+	required := map[string]types.String{
+		"date_adjective": data.DateAdjective,
+		"date_noun":      data.DateNoun,
+		"date_qualifier": data.DateQualifier,
+	}
+	for attrName, val := range required {
+		if val.IsUnknown() || isSet(val) {
+			continue
+		}
+		resp.Diagnostics.AddAttributeError(
+			path.Root(attrName),
+			"Missing Required Field",
+			fmt.Sprintf(`"%s" is required when "day_style" is "Complex".`, attrName),
+		)
+	}
+	if !data.NthAmount.IsUnknown() && data.NthAmount.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("nth_amount"),
+			"Missing Required Field",
+			`"nth_amount" is required when "day_style" is "Complex".`,
+		)
+	}
+}
+
 // readTrigger fetches the trigger from the API and updates the model.
 func (r *TriggerTimeResource) readTrigger(ctx context.Context, data *TriggerTimeResourceModel) error {
 	query := url.Values{}
@@ -443,6 +543,12 @@ func (r *TriggerTimeResource) toAPIModel(ctx context.Context, data *TriggerTimeR
 		TimeIntervalUnits: data.TimeIntervalUnits.ValueString(),
 		DayStyle:          data.DayStyle.ValueString(),
 		DayInterval:       data.DayInterval.ValueInt64(),
+		DateAdjective:     data.DateAdjective.ValueString(),
+		NthAmount:         data.NthAmount.ValueInt64(),
+		DateAdjustment:    data.DateAdjustment.ValueString(),
+		AdjustInterval:    data.AdjustInterval.ValueBool(),
+		AdjustmentAmount:  data.AdjustmentAmount.ValueInt64(),
+		AdjustmentType:    data.AdjustmentType.ValueString(),
 		Sun:               data.Sunday.ValueBool(),
 		Mon:               data.Monday.ValueBool(),
 		Tue:               data.Tuesday.ValueBool(),
@@ -462,6 +568,19 @@ func (r *TriggerTimeResource) toAPIModel(ctx context.Context, data *TriggerTimeR
 
 	// Handle variables
 	model.Variables = TaskVariablesToAPI(ctx, data.Variables)
+
+	// The API stores the date noun/qualifier as both a singular object and a
+	// single-element array; populate both for a faithful round-trip.
+	if isSet(data.DateNoun) {
+		w := complexDayWrapperAPIModel{Value: data.DateNoun.ValueString()}
+		model.DateNoun = &w
+		model.DateNouns = []complexDayWrapperAPIModel{w}
+	}
+	if isSet(data.DateQualifier) {
+		w := complexDayWrapperAPIModel{Value: data.DateQualifier.ValueString()}
+		model.DateQualifier = &w
+		model.DateQualifiers = []complexDayWrapperAPIModel{w}
+	}
 
 	// Handle opswise_groups list
 	if !data.OpswiseGroups.IsNull() && !data.OpswiseGroups.IsUnknown() {
@@ -494,6 +613,28 @@ func (r *TriggerTimeResource) fromAPIModel(ctx context.Context, apiModel *Trigge
 	// Day configuration
 	data.DayStyle = StringValueOrNull(apiModel.DayStyle)
 	data.DayInterval = types.Int64Value(apiModel.DayInterval)
+
+	// Complex date scheduling
+	dateNoun := ""
+	if apiModel.DateNoun != nil {
+		dateNoun = apiModel.DateNoun.Value
+	} else if len(apiModel.DateNouns) > 0 {
+		dateNoun = apiModel.DateNouns[0].Value
+	}
+	dateQualifier := ""
+	if apiModel.DateQualifier != nil {
+		dateQualifier = apiModel.DateQualifier.Value
+	} else if len(apiModel.DateQualifiers) > 0 {
+		dateQualifier = apiModel.DateQualifiers[0].Value
+	}
+	data.DateAdjective = StringValueOrNull(apiModel.DateAdjective)
+	data.DateNoun = StringValueOrNull(dateNoun)
+	data.DateQualifier = StringValueOrNull(dateQualifier)
+	data.NthAmount = types.Int64Value(apiModel.NthAmount)
+	data.DateAdjustment = StringValueOrNull(apiModel.DateAdjustment)
+	data.AdjustInterval = types.BoolValue(apiModel.AdjustInterval)
+	data.AdjustmentAmount = types.Int64Value(apiModel.AdjustmentAmount)
+	data.AdjustmentType = StringValueOrNull(apiModel.AdjustmentType)
 
 	// Day of week flags
 	data.Sunday = types.BoolValue(apiModel.Sun)
