@@ -304,6 +304,22 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 			continue
 		}
 
+		// A vertex whose task is itself a workflow needs its own full
+		// treatment (header + tasks + vertices + edges), not the generic
+		// bare/leaf resource export below - otherwise it would be permanently
+		// skipped (via isExported) when its own turn comes up later, missing
+		// its own vertices/edges entirely. Recurse instead; the recursive
+		// call's isExported guard (set before its own task loop runs) already
+		// protects against duplicate work for diamond references and against
+		// infinite recursion on direct cycles, so no extra visited-set is
+		// needed here.
+		if cliType == "task_workflow" {
+			if err := g.exportWorkflowComplete(ctx, taskName); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to export sub-workflow %s: %v\n", taskName, err)
+			}
+			continue
+		}
+
 		if g.isExported(cliType, taskName) {
 			continue
 		}
@@ -517,7 +533,11 @@ type WorkflowEdge struct {
 	} `json:"targetId"`
 	StraightEdge bool `json:"straightEdge,omitempty"`
 	Condition    struct {
-		Value string `json:"value"`
+		Value       string `json:"value,omitempty"`
+		Type        string `json:"type,omitempty"`
+		FirstValue  string `json:"firstValue,omitempty"`
+		Operator    string `json:"operator,omitempty"`
+		SecondValue string `json:"secondValue,omitempty"`
 	} `json:"condition,omitempty"`
 }
 
@@ -600,6 +620,15 @@ func (g *Generator) generateWorkflowEdgeHCL(workflowName string, e WorkflowEdge,
 		"_resourceName":      SanitizeName(fmt.Sprintf("%s_%s_to_%s", workflowName, sourceTask, targetTask)),
 		"_terraformResource": "stonebranch_workflow_edge",
 	}
+	if e.Condition.Value != "" || e.Condition.Type != "" {
+		data["condition"] = map[string]interface{}{
+			"type":        e.Condition.Type,
+			"value":       e.Condition.Value,
+			"firstValue":  e.Condition.FirstValue,
+			"operator":    e.Condition.Operator,
+			"secondValue": e.Condition.SecondValue,
+		}
+	}
 
 	tmpl := GetTemplate("workflow_edge")
 	if tmpl == nil {
@@ -671,6 +700,15 @@ func (g *Generator) generateWorkflowEdgeHCLNew(workflowName, workflowTfName stri
 		"straightEdge":       e.StraightEdge,
 		"_resourceName":      edgeTfName,
 		"_terraformResource": "stonebranch_workflow_edge",
+	}
+	if e.Condition.Value != "" || e.Condition.Type != "" {
+		data["condition"] = map[string]interface{}{
+			"type":        e.Condition.Type,
+			"value":       e.Condition.Value,
+			"firstValue":  e.Condition.FirstValue,
+			"operator":    e.Condition.Operator,
+			"secondValue": e.Condition.SecondValue,
+		}
 	}
 
 	tmpl := GetTemplate("workflow_edge")

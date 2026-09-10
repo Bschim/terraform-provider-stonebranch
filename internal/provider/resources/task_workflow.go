@@ -683,7 +683,7 @@ func (r *TaskWorkflowResource) fromAPIModel(ctx context.Context, apiModel *TaskW
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle workflow-specific run criteria and step actions/conditions
-	data.RunCriteria = TaskRunCriteriaFromAPI(apiModel.RunCriteria)
+	data.RunCriteria = TaskRunCriteriaFromAPIOrdered(ctx, apiModel.RunCriteria, data.RunCriteria)
 	data.StepActions = TaskStepActionsFromAPI(apiModel.StepActions)
 	data.StepConditions = TaskStepConditionsFromAPI(apiModel.StepConditions)
 

@@ -443,6 +443,18 @@ func TaskRunCriteriaFromAPI(apiItems []TaskRunCriterionAPIModel) types.List {
 	return result
 }
 
+// TaskRunCriteriaFromAPIOrdered converts API run-criteria models to a Terraform
+// list, reordered to match priorOrder's element order (see reorderToMatchPrior).
+// run_criteria is not Computed, so Terraform requires the applied result to match
+// the plan exactly, including order; UAC does not guarantee it returns entries in
+// the order they were submitted.
+func TaskRunCriteriaFromAPIOrdered(ctx context.Context, api []TaskRunCriterionAPIModel, priorOrder types.List) types.List {
+	if len(api) == 0 || priorOrder.IsNull() || priorOrder.IsUnknown() {
+		return TaskRunCriteriaFromAPI(api)
+	}
+	return TaskRunCriteriaFromAPI(reorderToMatchPrior(api, TaskRunCriteriaToAPI(ctx, priorOrder)))
+}
+
 // TaskStepConditionModel describes a single z/OS step condition in Terraform.
 type TaskStepConditionModel struct {
 	StepName    types.String `tfsdk:"step_name"`

@@ -31,3 +31,8 @@ bin/
 
 # AI assistant context
 CLAUDE.md
+
+# GitLab pipeline config lives externally (stonebranch-project repo) so it
+# never ends up in a commit pushed to the GitHub fork — see that repo's
+# ci/terraform-provider-stonebranch.gitlab-ci.yml
+.gitlab-ci.yml
