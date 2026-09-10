@@ -369,6 +369,7 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 			vertexTfNames[v.VertexId] = vertexTfName
 			g.bufferFor(vertexRT).WriteString(vertexHCL)
 			g.bufferFor(vertexRT).WriteString("\n")
+			g.writeImportBlock(vertexRT, vertexTfName, fmt.Sprintf("%s/%s", name, v.VertexId))
 		}
 	}
 
@@ -380,10 +381,11 @@ func (g *Generator) exportWorkflowComplete(ctx context.Context, name string) err
 	} else if len(edges) > 0 {
 		wfBuf.WriteString("# --- Workflow Edges ---\n")
 		for _, e := range edges {
-			edgeHCL, err := g.generateWorkflowEdgeHCLNew(name, wfTfName, e, vertices, vertexTfNames)
+			edgeTfName, edgeHCL, err := g.generateWorkflowEdgeHCLNew(name, wfTfName, e, vertices, vertexTfNames)
 			if err == nil {
 				g.bufferFor(edgeRT).WriteString(edgeHCL)
 				g.bufferFor(edgeRT).WriteString("\n")
+				g.writeImportBlock(edgeRT, edgeTfName, fmt.Sprintf("%s/%s/%s", name, e.SourceId.Value, e.TargetId.Value))
 			}
 		}
 	}
@@ -672,7 +674,9 @@ func (g *Generator) generateWorkflowVertexHCLNew(workflowName, workflowTfName st
 }
 
 // generateWorkflowEdgeHCLNew generates HCL for a workflow edge using sequential naming.
-func (g *Generator) generateWorkflowEdgeHCLNew(workflowName, workflowTfName string, e WorkflowEdge, vertices []WorkflowVertex, vertexTfNames map[string]string) (string, error) {
+// Returns the edge's generated terraform resource name alongside its HCL so
+// callers can also emit a matching import {} block.
+func (g *Generator) generateWorkflowEdgeHCLNew(workflowName, workflowTfName string, e WorkflowEdge, vertices []WorkflowVertex, vertexTfNames map[string]string) (string, string, error) {
 	// Find task names for source and target vertex IDs
 	var sourceTask, targetTask string
 	for _, v := range vertices {
@@ -713,15 +717,15 @@ func (g *Generator) generateWorkflowEdgeHCLNew(workflowName, workflowTfName stri
 
 	tmpl := GetTemplate("workflow_edge")
 	if tmpl == nil {
-		return "", fmt.Errorf("no template for workflow_edge")
+		return "", "", fmt.Errorf("no template for workflow_edge")
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return buf.String(), nil
+	return edgeTfName, buf.String(), nil
 }
 
 // outputHCL appends HCL to the buffer for the given resource type (legacy compatibility).
@@ -864,20 +868,18 @@ func (g *Generator) bufferFor(rt *ResourceType) *bytes.Buffer {
 }
 
 // writeImportBlock appends an `import {}` block to imports.tf for the given
-// resource, if --with-imports was requested and the resource type is
-// independently importable by name.
+// resource, if --with-imports was requested. `name` is the resource's import
+// ID as expected by that resource type's ImportState (a plain name for most
+// types; a composite "workflow_name/vertex_id" or
+// "workflow_name/source_id/target_id" string for workflow_vertex/
+// workflow_edge, which have no standalone UAC name of their own).
 func (g *Generator) writeImportBlock(rt *ResourceType, tfName, name string) {
-	if !g.withImports || !isImportable(rt) {
+	if !g.withImports {
 		return
 	}
 	buf := g.importsBuffer()
 	buf.WriteString(fmt.Sprintf("import {\n  to = %s.%s\n  id = \"%s\"\n}\n\n",
 		rt.TerraformResource, tfName, quote(name)))
-}
-
-// workflow_vertex/workflow_edge have no standalone UAC name — not importable.
-func isImportable(rt *ResourceType) bool {
-	return rt.CLIName != "workflow_vertex" && rt.CLIName != "workflow_edge"
 }
 
 func (g *Generator) importsBuffer() *bytes.Buffer {
