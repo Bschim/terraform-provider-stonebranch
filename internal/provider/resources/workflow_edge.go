@@ -593,8 +593,11 @@ func (r *WorkflowEdgeResource) Update(ctx context.Context, req resource.UpdateRe
 		)
 		return
 	}
-	data.StraightEdge = types.BoolValue(edge.StraightEdge)
-	data.Condition = conditionFromAPI(edge.Condition)
+	// UAC's PUT /resources/workflow/edges silently ignores straightEdge/condition on an
+	// existing edge (it always echoes back the value from original creation), so intentionally
+	// keep the planned values here rather than overwriting with edge.StraightEdge/edge.Condition
+	// — doing the latter causes "provider produced inconsistent result after apply" since the
+	// applied value would never match what Update() just promised via req.Plan.
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
