@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -18,7 +19,8 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource = &WorkflowVertexResource{}
+	_ resource.Resource                = &WorkflowVertexResource{}
+	_ resource.ResourceWithImportState = &WorkflowVertexResource{}
 )
 
 func NewWorkflowVertexResource() resource.Resource {
@@ -341,4 +343,65 @@ func (r *WorkflowVertexResource) Delete(ctx context.Context, req resource.Delete
 		)
 		return
 	}
+}
+
+// ImportState imports an existing workflow vertex using an ID of the form
+// "workflow_name/vertex_id". The vertex ID (assigned by UAC) disambiguates
+// cases where the same task appears more than once in a workflow's graph.
+func (r *WorkflowVertexResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.SplitN(req.ID, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			fmt.Sprintf(`Expected import ID in the form "workflow_name/vertex_id", got: %q.`, req.ID),
+		)
+		return
+	}
+	workflowName, vertexId := parts[0], parts[1]
+
+	query := url.Values{}
+	query.Set("workflowname", workflowName)
+	query.Set("vertexid", vertexId)
+
+	respBody, err := r.client.Get(ctx, "/resources/workflow/vertices", query)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Reading Workflow Vertex",
+			fmt.Sprintf("Could not read vertex %s in workflow %s: %s", vertexId, workflowName, err),
+		)
+		return
+	}
+
+	var vertices []WorkflowVertexResponseModel
+	if err := json.Unmarshal(respBody, &vertices); err != nil {
+		var vertex WorkflowVertexResponseModel
+		if err := json.Unmarshal(respBody, &vertex); err != nil {
+			resp.Diagnostics.AddError(
+				"Error Parsing Response",
+				fmt.Sprintf("Could not parse vertex response: %s", err),
+			)
+			return
+		}
+		vertices = []WorkflowVertexResponseModel{vertex}
+	}
+
+	if len(vertices) == 0 || vertices[0].Task == nil {
+		resp.Diagnostics.AddError(
+			"Vertex Not Found",
+			fmt.Sprintf("No vertex %s found in workflow %q.", vertexId, workflowName),
+		)
+		return
+	}
+
+	vertex := vertices[0]
+	data := WorkflowVertexResourceModel{
+		WorkflowName: types.StringValue(workflowName),
+		TaskName:     types.StringValue(vertex.Task.Value),
+		VertexId:     types.StringValue(vertexId),
+		Alias:        StringValueOrNull(vertex.Alias),
+		VertexX:      StringValueOrNull(vertex.VertexX),
+		VertexY:      StringValueOrNull(vertex.VertexY),
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

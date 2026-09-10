@@ -58,6 +58,7 @@ func registerTemplate(name, tmpl string) {
 		"fieldSet":      fieldSet,
 		"hasActions":    hasActions,
 		"heredocEscape": heredocEscape,
+		"wrapperValue":  wrapperValue,
 	})
 	// Parse the shared actions_block/*_item sub-templates into t's set
 	// first (actionsTemplateDefs contains only {{define}} blocks, so this
@@ -68,6 +69,7 @@ func registerTemplate(name, tmpl string) {
 	template.Must(t.Parse(actionsTemplateDefs))
 	template.Must(t.Parse(taskVariablesTemplateDefs))
 	template.Must(t.Parse(taskWaitDelayTemplateDefs))
+	template.Must(t.Parse(runCriteriaTemplateDefs))
 	templates[name] = template.Must(t.Parse(tmpl))
 }
 
@@ -198,6 +200,33 @@ func hasActions(v interface{}) bool {
 		}
 	}
 	return false
+}
+
+// wrapperValue extracts the "value" field from a run_criteria complex-day
+// wrapper field that the API represents in two redundant shapes: a singular
+// object (e.g. "complexNoun": {"value": "Day"}) and an array of the same
+// shape (e.g. "complexNouns": [{"value": "Day"}]). Mirrors the Go-side
+// precedent in TaskRunCriteriaFromAPI (internal/provider/resources/
+// task_workflow_criteria.go): prefer the singular object if present, else
+// fall back to the first array element. Returns "" if neither is populated.
+func wrapperValue(v interface{}, singularKey, pluralKey string) string {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if singular, ok := m[singularKey].(map[string]interface{}); ok {
+		if s, ok := singular["value"].(string); ok && s != "" {
+			return s
+		}
+	}
+	if plural, ok := m[pluralKey].([]interface{}); ok && len(plural) > 0 {
+		if first, ok := plural[0].(map[string]interface{}); ok {
+			if s, ok := first["value"].(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 // actionsTemplateDefs contains only {{define}} blocks (no top-level text)
@@ -621,6 +650,124 @@ const taskWaitDelayTemplateDefs = `
 {{- if notEmpty .twWorkflowOnly}}
   workflow_only = "{{quote .twWorkflowOnly}}"
 {{- end}}
+{{end}}
+`
+
+// runCriteriaTemplateDefs renders the stonebranch_task_workflow-only
+// "run_criteria" attribute. Field names below use raw camelCase JSON keys
+// (matching how every other template accesses fields on the generic
+// map[string]interface{} data); the snake_case only appears in the
+// *emitted* HCL attribute names. Cross-checked against
+// TaskRunCriterionAPIModel/TaskRunCriteriaSchema() in
+// internal/provider/resources/task_workflow_criteria.go.
+//
+//   - "type"/"task" are unconditional (schema: Required: true).
+//   - "complexNoun"/"complexQualifier" are resolved via wrapperValue, since
+//     the API represents each as both a singular {"value": ...} object and a
+//     single-element array of the same shape; prefer the singular object,
+//     falling back to the first array element (mirrors TaskRunCriteriaFromAPI).
+const runCriteriaTemplateDefs = `
+{{define "run_criteria_block"}}
+  run_criteria = [
+{{- range .}}
+    {
+      type = "{{quote .type}}"
+      task = "{{quote .task}}"
+{{- if notEmpty .vertexId}}
+      vertex_id = "{{quote .vertexId}}"
+{{- end}}
+{{- if notEmpty .description}}
+      description = "{{quote .description}}"
+{{- end}}
+{{- if isTrue .businessDay}}
+      business_day = true
+{{- end}}
+{{- if isTrue .holiday}}
+      holiday = true
+{{- end}}
+{{- if notEmpty .holidayAdjustment}}
+      holiday_adjustment = "{{quote .holidayAdjustment}}"
+{{- end}}
+{{- if notEmpty .holidayAdjustmentAmount}}
+      holiday_adjustment_amount = {{.holidayAdjustmentAmount}}
+{{- end}}
+{{- if notEmpty .holidayAdjustmentType}}
+      holiday_adjustment_type = "{{quote .holidayAdjustmentType}}"
+{{- end}}
+{{- if isTrue .specificDay}}
+      specific_day = true
+{{- end}}
+{{- if isTrue .specificDaySun}}
+      specific_day_sun = true
+{{- end}}
+{{- if isTrue .specificDayMon}}
+      specific_day_mon = true
+{{- end}}
+{{- if isTrue .specificDayTue}}
+      specific_day_tue = true
+{{- end}}
+{{- if isTrue .specificDayWed}}
+      specific_day_wed = true
+{{- end}}
+{{- if isTrue .specificDayThu}}
+      specific_day_thu = true
+{{- end}}
+{{- if isTrue .specificDayFri}}
+      specific_day_fri = true
+{{- end}}
+{{- if isTrue .specificDaySat}}
+      specific_day_sat = true
+{{- end}}
+{{- if isTrue .customDay}}
+      custom_day = true
+{{- end}}
+{{- if notEmpty .customDayChoice}}
+      custom_day_choice = "{{quote .customDayChoice}}"
+{{- end}}
+{{- if isTrue .variable}}
+      variable = true
+{{- end}}
+{{- if notEmpty .evaluateAt}}
+      evaluate_at = "{{quote .evaluateAt}}"
+{{- end}}
+{{- if notEmpty .variableName}}
+      variable_name = "{{quote .variableName}}"
+{{- end}}
+{{- if notEmpty .variableValue}}
+      variable_value = "{{quote .variableValue}}"
+{{- end}}
+{{- if notEmpty .variableOp}}
+      variable_op = "{{quote .variableOp}}"
+{{- end}}
+{{- if isTrue .complex}}
+      complex = true
+{{- end}}
+{{- if notEmpty .complexAdjective}}
+      complex_adjective = "{{quote .complexAdjective}}"
+{{- end}}
+{{- $complexNoun := wrapperValue . "complexNoun" "complexNouns"}}
+{{- if notEmpty $complexNoun}}
+      complex_noun = "{{quote $complexNoun}}"
+{{- end}}
+{{- $complexQualifier := wrapperValue . "complexQualifier" "complexQualifiers"}}
+{{- if notEmpty $complexQualifier}}
+      complex_qualifier = "{{quote $complexQualifier}}"
+{{- end}}
+{{- if notEmpty .complexNthAmount}}
+      complex_nth_amount = {{.complexNthAmount}}
+{{- end}}
+{{- if notEmpty .complexAdjustment}}
+      complex_adjustment = "{{quote .complexAdjustment}}"
+{{- end}}
+{{- if notEmpty .complexAdjustmentAmount}}
+      complex_adjustment_amount = {{.complexAdjustmentAmount}}
+{{- end}}
+{{- if notEmpty .complexAdjustmentType}}
+      complex_adjustment_type = "{{quote .complexAdjustmentType}}"
+{{- end}}
+    },
+{{- end}}
+  ]
 {{end}}
 `
 
@@ -1066,6 +1213,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .runCriteria}}
+{{template "run_criteria_block" .runCriteria}}
 {{- end}}
 }
 `
@@ -2298,5 +2448,28 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
   workflow_name = "{{quote .workflowName}}"
   source_id     = stonebranch_workflow_vertex.{{.sourceVertexTfName}}.vertex_id
   target_id     = stonebranch_workflow_vertex.{{.targetVertexTfName}}.vertex_id
+{{- if eq .straightEdge false}}
+  straight_edge = false
+{{- end}}
+{{- if .condition}}
+{{- if eq .condition.type "Exit Code"}}
+  condition = {
+    type      = "Exit Code"
+    exit_code = "{{quote .condition.value}}"
+  }
+{{- else if eq .condition.type "Variable"}}
+  condition = {
+    type         = "Variable"
+    first_value  = "{{quote .condition.firstValue}}"
+    operator     = "{{quote .condition.operator}}"
+    second_value = "{{quote .condition.secondValue}}"
+  }
+{{- else if ne .condition.value "Success"}}
+  condition = {
+    type   = "Status"
+    status = "{{quote .condition.value}}"
+  }
+{{- end}}
+{{- end}}
 }
 `

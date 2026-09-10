@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -26,6 +27,7 @@ import (
 var (
 	_ resource.Resource                   = &WorkflowEdgeResource{}
 	_ resource.ResourceWithValidateConfig = &WorkflowEdgeResource{}
+	_ resource.ResourceWithImportState    = &WorkflowEdgeResource{}
 )
 
 // Known enum values for the edge condition "type" and "status" fields.
@@ -89,7 +91,7 @@ func EdgeConditionAttrTypes() map[string]attr.Type {
 type WorkflowEdgeAPIModel struct {
 	SourceId     *EdgeVertexRef         `json:"sourceId,omitempty"`
 	TargetId     *EdgeVertexRef         `json:"targetId,omitempty"`
-	StraightEdge bool                   `json:"straightEdge,omitempty"`
+	StraightEdge bool                   `json:"straightEdge"`
 	Condition    *EdgeConditionAPIModel `json:"condition,omitempty"`
 }
 
@@ -593,8 +595,11 @@ func (r *WorkflowEdgeResource) Update(ctx context.Context, req resource.UpdateRe
 		)
 		return
 	}
-	data.StraightEdge = types.BoolValue(edge.StraightEdge)
-	data.Condition = conditionFromAPI(edge.Condition)
+	// UAC's PUT /resources/workflow/edges silently ignores straightEdge/condition on an
+	// existing edge (it always echoes back the value from original creation), so intentionally
+	// keep the planned values here rather than overwriting with edge.StraightEdge/edge.Condition
+	// — doing the latter causes "provider produced inconsistent result after apply" since the
+	// applied value would never match what Update() just promised via req.Plan.
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -631,4 +636,46 @@ func (r *WorkflowEdgeResource) Delete(ctx context.Context, req resource.DeleteRe
 		)
 		return
 	}
+}
+
+// ImportState imports an existing workflow edge using an ID of the form
+// "workflow_name/source_vertex_id/target_vertex_id". Vertex IDs (rather than
+// task names) are required to disambiguate edges when the same task appears
+// more than once in a workflow's graph.
+func (r *WorkflowEdgeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.SplitN(req.ID, "/", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			fmt.Sprintf(`Expected import ID in the form "workflow_name/source_vertex_id/target_vertex_id", got: %q.`, req.ID),
+		)
+		return
+	}
+	workflowName, sourceId, targetId := parts[0], parts[1], parts[2]
+
+	edge, err := r.findEdge(ctx, workflowName, sourceId, targetId)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Reading Workflow Edges",
+			fmt.Sprintf("Could not read edges for workflow %s: %s", workflowName, err),
+		)
+		return
+	}
+	if edge == nil {
+		resp.Diagnostics.AddError(
+			"Edge Not Found",
+			fmt.Sprintf("No edge from vertex %s to vertex %s found in workflow %q.", sourceId, targetId, workflowName),
+		)
+		return
+	}
+
+	data := WorkflowEdgeResourceModel{
+		WorkflowName: types.StringValue(workflowName),
+		SourceId:     types.StringValue(sourceId),
+		TargetId:     types.StringValue(targetId),
+		StraightEdge: types.BoolValue(edge.StraightEdge),
+		Condition:    conditionFromAPI(edge.Condition),
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
