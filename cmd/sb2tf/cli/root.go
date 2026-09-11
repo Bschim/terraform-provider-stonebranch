@@ -14,6 +14,8 @@ import (
 var (
 	// Global flags
 	apiToken  string
+	username  string
+	password  string
 	baseURL   string
 	output    string
 	sourceDir string
@@ -39,7 +41,8 @@ Use this tool to:
   - Migrate manually-created resources to Infrastructure as Code
 
 Authentication:
-  Set STONEBRANCH_API_TOKEN environment variable or use --token flag.
+  Set STONEBRANCH_API_TOKEN environment variable or use --token flag for Bearer auth.
+  Or set STONEBRANCH_USERNAME/STONEBRANCH_PASSWORD (or --username/--password) for HTTP Basic Auth.
   Set STONEBRANCH_BASE_URL environment variable or use --url flag.`,
 		PersistentPreRunE: initClient,
 		SilenceUsage:      true,
@@ -60,6 +63,8 @@ func Execute() error {
 func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&apiToken, "token", "", "StoneBranch API token (env: STONEBRANCH_API_TOKEN)")
+	rootCmd.PersistentFlags().StringVar(&username, "username", "", "StoneBranch Basic Auth username (env: STONEBRANCH_USERNAME)")
+	rootCmd.PersistentFlags().StringVar(&password, "password", "", "StoneBranch Basic Auth password (env: STONEBRANCH_PASSWORD)")
 	rootCmd.PersistentFlags().StringVar(&baseURL, "url", "", "StoneBranch base URL (env: STONEBRANCH_BASE_URL)")
 	rootCmd.PersistentFlags().StringVarP(&output, "output", "o", "", "Output directory (default: stdout)")
 	rootCmd.PersistentFlags().StringVarP(&sourceDir, "source-dir", "s", "", "Read resources from a local JSON export directory instead of the API")
@@ -87,8 +92,27 @@ func initClient(cmd *cobra.Command, args []string) error {
 	if token == "" {
 		token = os.Getenv("STONEBRANCH_API_TOKEN")
 	}
-	if token == "" {
-		return fmt.Errorf("API token required: set STONEBRANCH_API_TOKEN or use --token flag")
+
+	// Get Basic Auth credentials from flags or environment
+	user := username
+	if user == "" {
+		user = os.Getenv("STONEBRANCH_USERNAME")
+	}
+	pass := password
+	if pass == "" {
+		pass = os.Getenv("STONEBRANCH_PASSWORD")
+	}
+
+	if (user != "") != (pass != "") {
+		return fmt.Errorf("both --username and --password (or STONEBRANCH_USERNAME/STONEBRANCH_PASSWORD) must be set together")
+	}
+	hasBasicAuth := user != "" && pass != ""
+
+	if token == "" && !hasBasicAuth {
+		return fmt.Errorf("authentication required: set STONEBRANCH_API_TOKEN (or --token), or STONEBRANCH_USERNAME/STONEBRANCH_PASSWORD (or --username/--password)")
+	}
+	if token != "" && hasBasicAuth {
+		return fmt.Errorf("ambiguous authentication: set either STONEBRANCH_API_TOKEN (--token) or STONEBRANCH_USERNAME/STONEBRANCH_PASSWORD (--username/--password), not both")
 	}
 
 	// Get base URL from flag or environment
@@ -102,7 +126,11 @@ func initClient(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create client
-	apiClient = client.NewClient(url, token)
+	if hasBasicAuth {
+		apiClient = client.NewBasicAuthClient(url, user, pass)
+	} else {
+		apiClient = client.NewClient(url, token)
+	}
 	return nil
 }
 

@@ -253,5 +253,7 @@ resource "stonebranch_task_file_transfer" "download_report" {
 
 ### Optional
 
-- `api_token` (String, Sensitive) Bearer token for StoneBranch API authentication. Can also be set via STONEBRANCH_API_TOKEN environment variable.
+- `api_token` (String, Sensitive) Bearer token for StoneBranch API authentication. Can also be set via STONEBRANCH_API_TOKEN environment variable. Mutually exclusive with username/password.
 - `base_url` (String) Base URL for the StoneBranch API. Can also be set via STONEBRANCH_BASE_URL environment variable.
+- `password` (String, Sensitive) Password for StoneBranch API HTTP Basic Auth. Can also be set via STONEBRANCH_PASSWORD environment variable. Requires username. Mutually exclusive with api_token.
+- `username` (String) Username for StoneBranch API HTTP Basic Auth, for UAC instances fronted by a proxy that requires Basic Auth instead of a Bearer token. Can also be set via STONEBRANCH_USERNAME environment variable. Requires password. Mutually exclusive with api_token.

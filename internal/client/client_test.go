@@ -28,6 +28,35 @@ func TestNewClient(t *testing.T) {
 	})
 }
 
+func TestNewBasicAuthClient(t *testing.T) {
+	t.Run("creates client with trimmed base URL and no API token", func(t *testing.T) {
+		client := NewBasicAuthClient("https://example.com/", "test-user", "test-pass")
+
+		assert.Equal(t, "https://example.com", client.BaseURL)
+		assert.Equal(t, "test-user", client.Username)
+		assert.Equal(t, "test-pass", client.Password)
+		assert.Empty(t, client.APIToken)
+		assert.NotNil(t, client.HTTPClient)
+	})
+
+	t.Run("sends Basic Auth header instead of Bearer", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user, pass, ok := r.BasicAuth()
+			assert.True(t, ok)
+			assert.Equal(t, "test-user", user)
+			assert.Equal(t, "test-pass", pass)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"status": "ok"}`))
+		}))
+		defer server.Close()
+
+		client := NewBasicAuthClient(server.URL, "test-user", "test-pass")
+		_, err := client.Get(context.Background(), "/resources/task", nil)
+		require.NoError(t, err)
+	})
+}
+
 func TestClient_Get(t *testing.T) {
 	t.Run("successful GET request", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

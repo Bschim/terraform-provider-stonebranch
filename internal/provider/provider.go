@@ -28,6 +28,8 @@ type StonebranchProvider struct {
 // StonebranchProviderModel describes the provider data model.
 type StonebranchProviderModel struct {
 	APIToken types.String `tfsdk:"api_token"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
 	BaseURL  types.String `tfsdk:"base_url"`
 }
 
@@ -49,7 +51,16 @@ func (p *StonebranchProvider) Schema(ctx context.Context, req provider.SchemaReq
 		Description: "Interact with StoneBranch Universal Controller API.",
 		Attributes: map[string]schema.Attribute{
 			"api_token": schema.StringAttribute{
-				Description: "Bearer token for StoneBranch API authentication. Can also be set via STONEBRANCH_API_TOKEN environment variable.",
+				Description: "Bearer token for StoneBranch API authentication. Can also be set via STONEBRANCH_API_TOKEN environment variable. Mutually exclusive with username/password.",
+				Optional:    true,
+				Sensitive:   true,
+			},
+			"username": schema.StringAttribute{
+				Description: "Username for StoneBranch API HTTP Basic Auth, for UAC instances fronted by a proxy that requires Basic Auth instead of a Bearer token. Can also be set via STONEBRANCH_USERNAME environment variable. Requires password. Mutually exclusive with api_token.",
+				Optional:    true,
+			},
+			"password": schema.StringAttribute{
+				Description: "Password for StoneBranch API HTTP Basic Auth. Can also be set via STONEBRANCH_PASSWORD environment variable. Requires username. Mutually exclusive with api_token.",
 				Optional:    true,
 				Sensitive:   true,
 			},
@@ -72,6 +83,8 @@ func (p *StonebranchProvider) Configure(ctx context.Context, req provider.Config
 
 	// Default values
 	apiToken := os.Getenv("STONEBRANCH_API_TOKEN")
+	username := os.Getenv("STONEBRANCH_USERNAME")
+	password := os.Getenv("STONEBRANCH_PASSWORD")
 	baseURL := os.Getenv("STONEBRANCH_BASE_URL")
 
 	// Override with config values if provided
@@ -79,18 +92,44 @@ func (p *StonebranchProvider) Configure(ctx context.Context, req provider.Config
 		apiToken = config.APIToken.ValueString()
 	}
 
+	if !config.Username.IsNull() {
+		username = config.Username.ValueString()
+	}
+
+	if !config.Password.IsNull() {
+		password = config.Password.ValueString()
+	}
+
 	if !config.BaseURL.IsNull() {
 		baseURL = config.BaseURL.ValueString()
 	}
 
-	// Validate required configuration
-	if apiToken == "" {
+	hasToken := apiToken != ""
+	hasBasicAuth := username != "" && password != ""
+
+	if (username != "") != (password != "") {
+		resp.Diagnostics.AddError(
+			"Incomplete Basic Auth Configuration",
+			"Both username and password must be set together to use HTTP Basic Auth. "+
+				"Set both the username and password values (or STONEBRANCH_USERNAME/STONEBRANCH_PASSWORD environment variables), or neither.",
+		)
+	}
+
+	if hasToken && hasBasicAuth {
+		resp.Diagnostics.AddError(
+			"Ambiguous Authentication Configuration",
+			"Both api_token and username/password are set. Configure only one authentication method: "+
+				"api_token for Bearer token authentication, or username/password for HTTP Basic Auth.",
+		)
+	}
+
+	if !hasToken && !hasBasicAuth && !resp.Diagnostics.HasError() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_token"),
-			"Missing StoneBranch API Token",
-			"The provider cannot create the StoneBranch API client as there is a missing or empty value for the StoneBranch API token. "+
-				"Set the api_token value in the configuration or use the STONEBRANCH_API_TOKEN environment variable. "+
-				"If either is already set, ensure the value is not empty.",
+			"Missing StoneBranch Authentication",
+			"The provider cannot create the StoneBranch API client as there is no authentication configured. "+
+				"Set the api_token value (or STONEBRANCH_API_TOKEN environment variable) for Bearer token authentication, "+
+				"or set both username and password (or STONEBRANCH_USERNAME/STONEBRANCH_PASSWORD environment variables) for HTTP Basic Auth.",
 		)
 	}
 
@@ -109,11 +148,17 @@ func (p *StonebranchProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	tflog.Debug(ctx, "Creating StoneBranch client", map[string]any{
-		"base_url": baseURL,
+		"base_url":   baseURL,
+		"basic_auth": hasBasicAuth,
 	})
 
 	// Create the API client
-	apiClient := client.NewClient(baseURL, apiToken)
+	var apiClient *client.Client
+	if hasBasicAuth {
+		apiClient = client.NewBasicAuthClient(baseURL, username, password)
+	} else {
+		apiClient = client.NewClient(baseURL, apiToken)
+	}
 
 	// Make the client available to resources and data sources
 	resp.DataSourceData = apiClient
