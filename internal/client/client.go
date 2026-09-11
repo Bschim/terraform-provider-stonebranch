@@ -16,14 +16,31 @@ import (
 type Client struct {
 	BaseURL    string
 	APIToken   string
+	Username   string
+	Password   string
 	HTTPClient *http.Client
 }
 
-// NewClient creates a new StoneBranch API client.
+// NewClient creates a new StoneBranch API client authenticating with a
+// Bearer token.
 func NewClient(baseURL, apiToken string) *Client {
 	return &Client{
 		BaseURL:  strings.TrimSuffix(baseURL, "/"),
 		APIToken: apiToken,
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+// NewBasicAuthClient creates a new StoneBranch API client authenticating
+// with HTTP Basic Auth instead of a Bearer token, for UAC instances fronted
+// by a reverse proxy that only accepts Basic credentials.
+func NewBasicAuthClient(baseURL, username, password string) *Client {
+	return &Client{
+		BaseURL:  strings.TrimSuffix(baseURL, "/"),
+		Username: username,
+		Password: password,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -61,7 +78,11 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint string, query u
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.APIToken)
+	if c.Username != "" {
+		req.SetBasicAuth(c.Username, c.Password)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+c.APIToken)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
