@@ -75,6 +75,20 @@ func TestAccWorkflowEdgeResource_conditionStatus(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "condition.status", "Failure"),
 				),
 			},
+			// Update the status value in place. Regression test for the Computed
+			// condition leaves (exit_code/first_value/operator/second_value) being
+			// left Unknown after apply, since their prior state was null.
+			{
+				Config: testAccWorkflowEdgeConfig_condition(rName, `
+  condition = {
+    type   = "Status"
+    status = "Success/Failure"
+  }`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "condition.type", "Status"),
+					resource.TestCheckResourceAttr(resourceName, "condition.status", "Success/Failure"),
+				),
+			},
 		},
 	})
 }

@@ -601,6 +601,16 @@ func (r *WorkflowEdgeResource) Update(ctx context.Context, req resource.UpdateRe
 	// — doing the latter causes "provider produced inconsistent result after apply" since the
 	// applied value would never match what Update() just promised via req.Plan.
 
+	// The plan's condition leaves that don't belong to the submitted condition's
+	// "shape" (e.g. exit_code/first_value/operator/second_value for a Status
+	// condition) plan as Unknown whenever their prior state was null, since their
+	// Computed+UseStateForUnknown modifier has no prior value to carry forward.
+	// Resolve the whole object from condAPI (what was actually submitted) so every
+	// leaf ends up concrete before it's saved to state.
+	if condAPI != nil {
+		data.Condition = conditionFromAPI(condAPI)
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
