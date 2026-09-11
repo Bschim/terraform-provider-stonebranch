@@ -87,6 +87,15 @@ func TaskExclusiveTasksFromAPI(apiItems []TaskExclusiveTaskAPIModel) types.List 
 	return result
 }
 
+// TaskExclusiveWithSelfSchema returns the schema for the exclusive_with_self attribute.
+func TaskExclusiveWithSelfSchema() schema.BoolAttribute {
+	return schema.BoolAttribute{
+		MarkdownDescription: "Whether this task cannot run concurrently with another instance of itself.",
+		Optional:            true,
+		Computed:            true,
+	}
+}
+
 // TaskVirtualResourceModel describes a single virtual-resource consumption entry in Terraform.
 type TaskVirtualResourceModel struct {
 	Resource    types.String `tfsdk:"resource"`

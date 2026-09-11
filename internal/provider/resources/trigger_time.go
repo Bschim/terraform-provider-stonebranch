@@ -58,6 +58,11 @@ type TriggerTimeResourceModel struct {
 	DayStyle    types.String `tfsdk:"day_style"`
 	DayInterval types.Int64  `tfsdk:"day_interval"`
 
+	// Restrict Times (time-of-day window during which the trigger may fire)
+	RestrictedTimes types.Bool   `tfsdk:"restricted_times"`
+	EnabledStart    types.String `tfsdk:"enabled_start"`
+	EnabledEnd      types.String `tfsdk:"enabled_end"`
+
 	// Complex date scheduling (when day_style is "Complex")
 	DateAdjective    types.String `tfsdk:"date_adjective"`
 	DateNoun         types.String `tfsdk:"date_noun"`
@@ -107,6 +112,10 @@ type TriggerTimeAPIModel struct {
 
 	DayStyle    string `json:"dayStyle,omitempty"`
 	DayInterval int64  `json:"dayInterval,omitempty"`
+
+	RestrictedTimes bool   `json:"restrictedTimes,omitempty"`
+	EnabledStart    string `json:"enabledStart,omitempty"`
+	EnabledEnd      string `json:"enabledEnd,omitempty"`
 
 	DateAdjective  string                      `json:"dateAdjective,omitempty"`
 	DateNoun       *complexDayWrapperAPIModel  `json:"dateNoun,omitempty"`
@@ -213,6 +222,23 @@ func (r *TriggerTimeResource) Schema(ctx context.Context, req resource.SchemaReq
 			},
 			"day_interval": schema.Int64Attribute{
 				MarkdownDescription: "Interval between days (when day_style is 'Interval').",
+				Optional:            true,
+				Computed:            true,
+			},
+
+			// Restrict Times
+			"restricted_times": schema.BoolAttribute{
+				MarkdownDescription: "Whether to restrict this trigger to only fire within the time-of-day window given by enabled_start/enabled_end.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"enabled_start": schema.StringAttribute{
+				MarkdownDescription: "Start of the time-of-day window during which the trigger may fire (e.g. '08:00'). Only applies when restricted_times is true.",
+				Optional:            true,
+				Computed:            true,
+			},
+			"enabled_end": schema.StringAttribute{
+				MarkdownDescription: "End of the time-of-day window during which the trigger may fire (e.g. '18:00'). Only applies when restricted_times is true.",
 				Optional:            true,
 				Computed:            true,
 			},
@@ -543,6 +569,9 @@ func (r *TriggerTimeResource) toAPIModel(ctx context.Context, data *TriggerTimeR
 		TimeIntervalUnits: data.TimeIntervalUnits.ValueString(),
 		DayStyle:          data.DayStyle.ValueString(),
 		DayInterval:       data.DayInterval.ValueInt64(),
+		RestrictedTimes:   data.RestrictedTimes.ValueBool(),
+		EnabledStart:      data.EnabledStart.ValueString(),
+		EnabledEnd:        data.EnabledEnd.ValueString(),
 		DateAdjective:     data.DateAdjective.ValueString(),
 		NthAmount:         data.NthAmount.ValueInt64(),
 		DateAdjustment:    data.DateAdjustment.ValueString(),
@@ -613,6 +642,11 @@ func (r *TriggerTimeResource) fromAPIModel(ctx context.Context, apiModel *Trigge
 	// Day configuration
 	data.DayStyle = StringValueOrNull(apiModel.DayStyle)
 	data.DayInterval = types.Int64Value(apiModel.DayInterval)
+
+	// Restrict Times
+	data.RestrictedTimes = types.BoolValue(apiModel.RestrictedTimes)
+	data.EnabledStart = StringValueOrNull(apiModel.EnabledStart)
+	data.EnabledEnd = StringValueOrNull(apiModel.EnabledEnd)
 
 	// Complex date scheduling
 	dateNoun := ""

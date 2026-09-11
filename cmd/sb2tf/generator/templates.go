@@ -68,6 +68,7 @@ func registerTemplate(name, tmpl string) {
 	// harmless for the ones that don't.
 	template.Must(t.Parse(actionsTemplateDefs))
 	template.Must(t.Parse(taskVariablesTemplateDefs))
+	template.Must(t.Parse(taskVirtualResourcesTemplateDefs))
 	template.Must(t.Parse(taskWaitDelayTemplateDefs))
 	template.Must(t.Parse(runCriteriaTemplateDefs))
 	templates[name] = template.Must(t.Parse(tmpl))
@@ -617,6 +618,31 @@ const taskVariablesTemplateDefs = `
 {{end}}
 `
 
+// taskVirtualResourcesTemplateDefs renders the "virtual_resources" attribute
+// shared by the task_* resources whose Go model embeds
+// TaskVirtualResourcesSchema() (internal/provider/resources/task_common_fields.go).
+// Not every task_* resource has this field (e.g. task_windows does not), so
+// callers gate the {{template}} invocation with {{- if notEmpty .virtualResources}}.
+const taskVirtualResourcesTemplateDefs = `
+{{define "virtual_resources_block"}}
+  virtual_resources = [
+{{- range .}}
+    {
+{{- if notEmpty .resource}}
+      resource = "{{quote .resource}}"
+{{- end}}
+{{- if notEmpty .resourceVar}}
+      resource_var = "{{quote .resourceVar}}"
+{{- end}}
+{{- if notEmpty .amount}}
+      amount = {{.amount}}
+{{- end}}
+    },
+{{- end}}
+  ]
+{{end}}
+`
+
 // taskWaitDelayTemplateDefs is shared by every task_* resource template -
 // they all embed the same wait_to_start/delay_on_start fields
 // (task_common_fields.go), backed by the same "tw*"-prefixed raw JSON keys
@@ -1030,6 +1056,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1131,6 +1160,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1180,6 +1212,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1213,6 +1248,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
 {{- end}}
 {{- if notEmpty .runCriteria}}
 {{template "run_criteria_block" .runCriteria}}
@@ -1271,6 +1309,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
 {{- end}}
 }
 `
@@ -1417,6 +1458,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1450,6 +1494,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
 {{- end}}
 }
 `
@@ -1494,6 +1541,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1530,6 +1580,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
 {{- end}}
 }
 `
@@ -1583,6 +1636,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1611,6 +1667,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
 {{- end}}
 }
 `
@@ -1685,6 +1744,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
+{{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
 {{- end}}
 }
 `
@@ -1888,6 +1950,9 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- if notEmpty .variables}}
 {{template "task_variables_block" .variables}}
 {{- end}}
+{{- if notEmpty .virtualResources}}
+{{template "virtual_resources_block" .virtualResources}}
+{{- end}}
 }
 `
 
@@ -1924,6 +1989,15 @@ resource "{{._terraformResource}}" "{{._resourceName}}" {
 {{- end}}
 {{- if notEmpty .dayInterval}}
   day_interval = {{.dayInterval}}
+{{- end}}
+{{- if isTrue .restrictedTimes}}
+  restricted_times = true
+{{- end}}
+{{- if notEmpty .enabledStart}}
+  enabled_start = "{{quote .enabledStart}}"
+{{- end}}
+{{- if notEmpty .enabledEnd}}
+  enabled_end = "{{quote .enabledEnd}}"
 {{- end}}
 {{- if notEmpty .dateAdjective}}
   date_adjective = "{{quote .dateAdjective}}"

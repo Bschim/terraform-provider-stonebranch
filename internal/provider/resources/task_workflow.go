@@ -82,9 +82,10 @@ type TaskWorkflowResourceModel struct {
 	Variables types.List `tfsdk:"variables"`
 
 	// Resource management
-	HoldResources    types.Bool `tfsdk:"hold_resources"`
-	ExclusiveTasks   types.List `tfsdk:"exclusive_tasks"`
-	VirtualResources types.List `tfsdk:"virtual_resources"`
+	HoldResources     types.Bool `tfsdk:"hold_resources"`
+	ExclusiveTasks    types.List `tfsdk:"exclusive_tasks"`
+	ExclusiveWithSelf types.Bool `tfsdk:"exclusive_with_self"`
+	VirtualResources  types.List `tfsdk:"virtual_resources"`
 
 	// Workflow-specific run criteria and step actions/conditions
 	RunCriteria    types.List `tfsdk:"run_criteria"`
@@ -136,9 +137,10 @@ type TaskWorkflowAPIModel struct {
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
-	HoldResources    bool                          `json:"holdResources,omitempty"`
-	ExclusiveTasks   []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
-	VirtualResources []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
+	HoldResources     bool                          `json:"holdResources,omitempty"`
+	ExclusiveTasks    []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
+	ExclusiveWithSelf bool                          `json:"exclusiveWithSelf,omitempty"`
+	VirtualResources  []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
 
 	RunCriteria    []TaskRunCriterionAPIModel  `json:"runCriteria,omitempty"`
 	StepActions    []TaskStepActionAPIModel    `json:"stepActions,omitempty"`
@@ -298,8 +300,9 @@ func (r *TaskWorkflowResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:            true,
 				Computed:            true,
 			},
-			"exclusive_tasks":   TaskExclusiveTasksSchema(),
-			"virtual_resources": TaskVirtualResourcesSchema(),
+			"exclusive_tasks":     TaskExclusiveTasksSchema(),
+			"exclusive_with_self": TaskExclusiveWithSelfSchema(),
+			"virtual_resources":   TaskVirtualResourcesSchema(),
 
 			// Workflow-specific run criteria and step actions/conditions
 			"run_criteria":    TaskRunCriteriaSchema(),
@@ -611,6 +614,7 @@ func (r *TaskWorkflowResource) toAPIModel(ctx context.Context, data *TaskWorkflo
 		model.HoldResources = data.HoldResources.ValueBool()
 	}
 	model.ExclusiveTasks = TaskExclusiveTasksToAPI(ctx, data.ExclusiveTasks)
+	model.ExclusiveWithSelf = data.ExclusiveWithSelf.ValueBool()
 	model.VirtualResources = TaskVirtualResourcesToAPI(ctx, data.VirtualResources)
 
 	// Handle workflow-specific run criteria and step actions/conditions
@@ -680,6 +684,7 @@ func (r *TaskWorkflowResource) fromAPIModel(ctx context.Context, apiModel *TaskW
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
 	data.ExclusiveTasks = TaskExclusiveTasksFromAPI(apiModel.ExclusiveTasks)
+	data.ExclusiveWithSelf = types.BoolValue(apiModel.ExclusiveWithSelf)
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle workflow-specific run criteria and step actions/conditions

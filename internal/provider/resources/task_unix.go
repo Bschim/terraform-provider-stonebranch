@@ -97,9 +97,10 @@ type TaskUnixResourceModel struct {
 	Variables types.List `tfsdk:"variables"`
 
 	// Resource management
-	HoldResources    types.Bool `tfsdk:"hold_resources"`
-	ExclusiveTasks   types.List `tfsdk:"exclusive_tasks"`
-	VirtualResources types.List `tfsdk:"virtual_resources"`
+	HoldResources     types.Bool `tfsdk:"hold_resources"`
+	ExclusiveTasks    types.List `tfsdk:"exclusive_tasks"`
+	ExclusiveWithSelf types.Bool `tfsdk:"exclusive_with_self"`
+	VirtualResources  types.List `tfsdk:"virtual_resources"`
 
 	// Actions
 	Actions types.Object `tfsdk:"actions"`
@@ -161,9 +162,10 @@ type TaskAPIModel struct {
 
 	Variables []TaskVariableAPIModel `json:"variables,omitempty"`
 
-	HoldResources    bool                          `json:"holdResources,omitempty"`
-	ExclusiveTasks   []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
-	VirtualResources []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
+	HoldResources     bool                          `json:"holdResources,omitempty"`
+	ExclusiveTasks    []TaskExclusiveTaskAPIModel   `json:"exclusiveTasks,omitempty"`
+	ExclusiveWithSelf bool                          `json:"exclusiveWithSelf,omitempty"`
+	VirtualResources  []TaskVirtualResourceAPIModel `json:"virtualResources,omitempty"`
 
 	Actions *ActionsAPIModel `json:"actions,omitempty"`
 
@@ -350,8 +352,9 @@ func (r *TaskUnixResource) Schema(ctx context.Context, req resource.SchemaReques
 				Optional:            true,
 				Computed:            true,
 			},
-			"exclusive_tasks":   TaskExclusiveTasksSchema(),
-			"virtual_resources": TaskVirtualResourcesSchema(),
+			"exclusive_tasks":     TaskExclusiveTasksSchema(),
+			"exclusive_with_self": TaskExclusiveWithSelfSchema(),
+			"virtual_resources":   TaskVirtualResourcesSchema(),
 
 			// Actions
 			"actions": TaskActionsSchema(),
@@ -613,6 +616,7 @@ func (r *TaskUnixResource) toAPIModel(ctx context.Context, data *TaskUnixResourc
 		model.HoldResources = data.HoldResources.ValueBool()
 	}
 	model.ExclusiveTasks = TaskExclusiveTasksToAPI(ctx, data.ExclusiveTasks)
+	model.ExclusiveWithSelf = data.ExclusiveWithSelf.ValueBool()
 	model.VirtualResources = TaskVirtualResourcesToAPI(ctx, data.VirtualResources)
 
 	// Handle actions
@@ -684,6 +688,7 @@ func (r *TaskUnixResource) fromAPIModel(ctx context.Context, apiModel *TaskAPIMo
 	// Handle resource management fields
 	data.HoldResources = types.BoolValue(apiModel.HoldResources)
 	data.ExclusiveTasks = TaskExclusiveTasksFromAPI(apiModel.ExclusiveTasks)
+	data.ExclusiveWithSelf = types.BoolValue(apiModel.ExclusiveWithSelf)
 	data.VirtualResources = TaskVirtualResourcesFromAPI(apiModel.VirtualResources)
 
 	// Handle actions
