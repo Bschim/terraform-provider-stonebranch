@@ -295,3 +295,32 @@ func ValidateTaskWaitDelay(waitToStart, waitAmount, delayOnStart, delayAmount ty
 
 	return diags
 }
+
+// ValidateTaskOutputReturn validates that output_return_sline is set whenever
+// output_return_type requests a stream-based capture ("OUTERR", "STDOUT",
+// "STDERR"). Confirmed against a real UAC apply: setting output_return_type =
+// "OUTERR" without output_return_sline fails at apply time with "Automatic
+// Output Retrieval Start Line: Field is required" (status 400) rather than at
+// plan time. "FILE" is excluded since it captures from output_return_file
+// instead and was not part of the confirmed failure. Deferred to the server if
+// either field is unknown (e.g. computed from another resource).
+func ValidateTaskOutputReturn(outputReturnType, outputReturnSline types.String) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if outputReturnType.IsUnknown() {
+		return diags
+	}
+
+	switch outputReturnType.ValueString() {
+	case "OUTERR", "STDOUT", "STDERR":
+		if !isSet(outputReturnSline) && !outputReturnSline.IsUnknown() {
+			diags.AddAttributeError(
+				path.Root("output_return_sline"),
+				"Missing Required Field",
+				`"output_return_sline" must be set when "output_return_type" is "OUTERR", "STDOUT", or "STDERR".`,
+			)
+		}
+	}
+
+	return diags
+}

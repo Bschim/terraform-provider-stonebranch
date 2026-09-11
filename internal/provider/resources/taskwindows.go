@@ -363,6 +363,7 @@ func (r *TaskWindowsResource) ValidateConfig(ctx context.Context, req resource.V
 	}
 
 	resp.Diagnostics.Append(ValidateTaskWaitDelay(data.WaitToStart, data.WaitAmount, data.DelayOnStart, data.DelayAmount)...)
+	resp.Diagnostics.Append(ValidateTaskOutputReturn(data.OutputReturnType, data.OutputReturnSline)...)
 }
 
 func (r *TaskWindowsResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

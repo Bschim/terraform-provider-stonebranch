@@ -21,8 +21,9 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                = &UniversalTemplateResource{}
-	_ resource.ResourceWithImportState = &UniversalTemplateResource{}
+	_ resource.Resource                   = &UniversalTemplateResource{}
+	_ resource.ResourceWithImportState    = &UniversalTemplateResource{}
+	_ resource.ResourceWithValidateConfig = &UniversalTemplateResource{}
 )
 
 func NewUniversalTemplateResource() resource.Resource {
@@ -964,6 +965,16 @@ func (r *UniversalTemplateResource) Schema(ctx context.Context, req resource.Sch
 			},
 		},
 	}
+}
+
+func (r *UniversalTemplateResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data UniversalTemplateResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(ValidateTaskOutputReturn(data.OutputReturnType, data.OutputReturnSline)...)
 }
 
 func (r *UniversalTemplateResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

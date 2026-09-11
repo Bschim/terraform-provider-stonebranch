@@ -377,6 +377,7 @@ func (r *TaskUnixResource) ValidateConfig(ctx context.Context, req resource.Vali
 	}
 
 	resp.Diagnostics.Append(ValidateTaskWaitDelay(data.WaitToStart, data.WaitAmount, data.DelayOnStart, data.DelayAmount)...)
+	resp.Diagnostics.Append(ValidateTaskOutputReturn(data.OutputReturnType, data.OutputReturnSline)...)
 }
 
 func (r *TaskUnixResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
