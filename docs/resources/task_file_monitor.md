@@ -113,6 +113,7 @@ resource "stonebranch_trigger_file_monitor" "process_incoming" {
 - `delay_duration` (String) Duration to delay before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `delay_on_start` is `Duration`.
 - `delay_on_start` (String) Determines whether the task delays once it becomes eligible to start. Valid values: `None`, `Duration` (delay for a fixed duration), `Seconds` (delay for a number of seconds). Defaults to `None`.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
+- `exclusive_with_self` (Boolean) Whether this task cannot run concurrently with another instance of itself.
 - `file_group` (String) Filter files by group.
 - `file_owner` (String) Filter files by owner.
 - `fm_type` (String) File monitor type. Valid values: Created, Deleted, Changed, Exist, Missing. Default is Created.

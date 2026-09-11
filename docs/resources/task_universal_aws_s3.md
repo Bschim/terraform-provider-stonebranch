@@ -202,6 +202,7 @@ variable "aws_credentials_name" {
 - `download_write_options` (String) How to handle existing files on download. Values: `True` (overwrite), `False` (skip), `Timestamp`, `AlwaysTimestamp`, `Rename`.
 - `endpoint_url` (String) Custom S3 endpoint URL (for S3-compatible services).
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
+- `exclusive_with_self` (Boolean) Whether this task cannot run concurrently with another instance of itself.
 - `exit_code_processing` (String) How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.
 - `exit_codes` (String) Exit codes that indicate success (e.g., '0' or '0,1,2'). Defaults to '0'.
 - `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
