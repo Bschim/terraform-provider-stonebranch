@@ -142,6 +142,7 @@ resource "stonebranch_task_email" "with_reply_to" {
 - `email_connection` (String) Name of the email connection to use.
 - `email_connection_var` (String) Variable containing the email connection name.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
+- `exclusive_with_self` (Boolean) Whether this task cannot run concurrently with another instance of itself.
 - `exit_codes` (String) Exit codes that indicate success (comma-separated).
 - `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `list_report_format` (String) Format for list reports (e.g., 'CSV', 'PDF').

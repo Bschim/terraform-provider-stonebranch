@@ -123,14 +123,25 @@ resource "stonebranch_task_unix" "business_job" {
 
 ### Optional
 
+- `adjust_interval` (Boolean) Whether to adjust the complex date by adjustment_amount/adjustment_type.
+- `adjustment_amount` (Number) Amount to adjust the complex date by (when adjust_interval is true).
+- `adjustment_type` (String) Unit for adjustment_amount (e.g. 'Day').
 - `calendar` (String) Name of the calendar to use for scheduling.
+- `date_adjective` (String) Complex date adjective (e.g. '1st'). Required when day_style is 'Complex'.
+- `date_adjustment` (String) Calendar adjustment applied to the computed complex date (e.g. 'None').
+- `date_noun` (String) Complex date noun (e.g. 'Business Day', 'Day'). Required when day_style is 'Complex'.
+- `date_qualifier` (String) Complex date qualifier (e.g. 'Week', 'Month'). Required when day_style is 'Complex'.
 - `day_interval` (Number) Interval between days (when day_style is 'Interval').
 - `day_style` (String) Day style: 'Everyday', 'Interval', 'Specific Days', 'Specific Dates', 'Complex'.
 - `description` (String) Description of the trigger.
 - `enabled` (Boolean) Whether the trigger is enabled. Note: Triggers are created disabled by default.
+- `enabled_end` (String) End of the time-of-day window during which the trigger may fire (e.g. '18:00'). Only applies when restricted_times is true.
+- `enabled_start` (String) Start of the time-of-day window during which the trigger may fire (e.g. '08:00'). Only applies when restricted_times is true.
 - `friday` (Boolean) Trigger on Friday (when day_style is 'Specific Days').
 - `monday` (Boolean) Trigger on Monday (when day_style is 'Specific Days').
+- `nth_amount` (Number) Nth-occurrence amount for complex date scheduling. Required when day_style is 'Complex'.
 - `opswise_groups` (List of String) List of business service names this trigger belongs to.
+- `restricted_times` (Boolean) Whether to restrict this trigger to only fire within the time-of-day window given by enabled_start/enabled_end.
 - `saturday` (Boolean) Trigger on Saturday (when day_style is 'Specific Days').
 - `sunday` (Boolean) Trigger on Sunday (when day_style is 'Specific Days').
 - `thursday` (Boolean) Trigger on Thursday (when day_style is 'Specific Days').

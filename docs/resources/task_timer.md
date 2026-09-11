@@ -103,6 +103,7 @@ resource "stonebranch_task_timer" "configurable_delay" {
 - `delay_duration` (String) Duration to delay before starting, in `DD:HH:MM:SS` format (days:hours:minutes:seconds). Used when `delay_on_start` is `Duration`.
 - `delay_on_start` (String) Determines whether the task delays once it becomes eligible to start. Valid values: `None`, `Duration` (delay for a fixed duration), `Seconds` (delay for a number of seconds). Defaults to `None`.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
+- `exclusive_with_self` (Boolean) Whether this task cannot run concurrently with another instance of itself.
 - `hold_resources` (Boolean) Whether to hold the task's virtual resources for the duration of any retries.
 - `opswise_groups` (List of String) List of business service names this task belongs to.
 - `sleep_amount` (String) Number of seconds to wait. Required when `sleep_type` is `Seconds`. Example: `30`.

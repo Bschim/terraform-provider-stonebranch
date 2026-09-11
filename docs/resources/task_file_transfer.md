@@ -121,6 +121,7 @@ resource "stonebranch_task_file_transfer" "udm_transfer" {
 - `delay_on_start` (String) Determines whether the task delays once it becomes eligible to start. Valid values: `None`, `Duration` (delay for a fixed duration), `Seconds` (delay for a number of seconds). Defaults to `None`.
 - `encrypt` (String) Encryption setting for the transfer.
 - `exclusive_tasks` (Attributes List) List of tasks that cannot run concurrently with this task. (see [below for nested schema](#nestedatt--exclusive_tasks))
+- `exclusive_with_self` (Boolean) Whether this task cannot run concurrently with another instance of itself.
 - `exit_code_processing` (String) How to process exit codes. Values: 'Success Exitcode Range', 'Failure Exitcode Range'.
 - `exit_code_text` (String) Text/pattern to scan output for (UAC's 'Scan Output For' field). Required by the API when exit_code_processing is an 'Output Contains' mode.
 - `exit_codes` (String) Exit codes that indicate success (e.g., '0' or '0,1,2').
