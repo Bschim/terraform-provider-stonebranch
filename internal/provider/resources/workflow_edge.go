@@ -55,6 +55,11 @@ type WorkflowEdgeResourceModel struct {
 	// Optional
 	StraightEdge types.Bool   `tfsdk:"straight_edge"`
 	Condition    types.Object `tfsdk:"condition"`
+
+	// Computed - durable identity used to re-resolve this edge if UAC
+	// renumbers vertex IDs elsewhere in the workflow. See matchEdge.
+	SourceTaskName types.String `tfsdk:"source_task_name"`
+	TargetTaskName types.String `tfsdk:"target_task_name"`
 }
 
 // EdgeConditionModel describes the branch condition for an edge in Terraform.
@@ -163,6 +168,14 @@ func (r *WorkflowEdgeResource) Schema(ctx context.Context, req resource.SchemaRe
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(true),
+			},
+			"source_task_name": schema.StringAttribute{
+				MarkdownDescription: "Task name of the source vertex, resolved from `source_id`. Used internally to re-resolve this edge if UAC renumbers vertex IDs elsewhere in the workflow.",
+				Computed:            true,
+			},
+			"target_task_name": schema.StringAttribute{
+				MarkdownDescription: "Task name of the target vertex, resolved from `target_id`. Used internally to re-resolve this edge if UAC renumbers vertex IDs elsewhere in the workflow.",
+				Computed:            true,
 			},
 			"condition": schema.SingleNestedAttribute{
 				MarkdownDescription: "Branch condition controlling when the target task runs. Exactly one shape applies, selected by `type`: 'Status' (default, requires `status`), 'Exit Code' (requires `exit_code`), or 'Variable' (requires `first_value`, `operator`, `second_value`). If omitted entirely, UAC defaults to a Status condition of 'Success'.",
@@ -374,9 +387,8 @@ func conditionFromAPI(cond *EdgeConditionAPIModel) types.Object {
 	return obj
 }
 
-// findEdge looks up a single edge within a workflow by source/target vertex ID.
-// Returns (nil, nil) if the workflow exists but no matching edge is found.
-func (r *WorkflowEdgeResource) findEdge(ctx context.Context, workflowName, sourceId, targetId string) (*WorkflowEdgeResponseModel, error) {
+// fetchEdges retrieves every edge defined in a workflow.
+func (r *WorkflowEdgeResource) fetchEdges(ctx context.Context, workflowName string) ([]WorkflowEdgeResponseModel, error) {
 	query := url.Values{}
 	query.Set("workflowname", workflowName)
 
@@ -389,15 +401,54 @@ func (r *WorkflowEdgeResource) findEdge(ctx context.Context, workflowName, sourc
 	if err := json.Unmarshal(respBody, &edges); err != nil {
 		return nil, fmt.Errorf("failed to parse edges response: %w", err)
 	}
+	return edges, nil
+}
 
+// matchEdge resolves the live edge corresponding to an edge previously
+// recorded in state (or an edge being imported/just created). It first tries
+// the fast path of matching by (source_id, target_id) vertex-ID pair, which
+// is correct immediately after Create/Update and remains correct as long as
+// nothing else in the workflow has caused UAC to renumber vertex IDs.
+//
+// If that fails, it falls back to matching by (source_task_name,
+// target_task_name) - task names are a durable identity, unlike vertex IDs.
+// A live scan of every edge across all workflows found zero collisions on
+// this pair, so no further tiebreak is needed here (contrast with vertices,
+// where the same task can appear more than once in a workflow - see
+// matchVertex). The task-name arguments are optional (pass "" when not yet
+// known, e.g. right after Create/Update or during ImportState by vertex ID).
+func matchEdge(edges []WorkflowEdgeResponseModel, sourceId, targetId, sourceTaskName, targetTaskName string) *WorkflowEdgeResponseModel {
 	for i := range edges {
 		edge := &edges[i]
 		if edge.SourceId != nil && edge.TargetId != nil &&
 			edge.SourceId.Value == sourceId && edge.TargetId.Value == targetId {
-			return edge, nil
+			return edge
 		}
 	}
-	return nil, nil
+
+	if sourceTaskName == "" || targetTaskName == "" {
+		return nil
+	}
+	for i := range edges {
+		edge := &edges[i]
+		if edge.SourceId != nil && edge.TargetId != nil &&
+			edge.SourceId.TaskName == sourceTaskName && edge.TargetId.TaskName == targetTaskName {
+			return edge
+		}
+	}
+	return nil
+}
+
+// findEdge fetches all edges in a workflow and resolves the one matching
+// sourceId/targetId, falling back to sourceTaskName/targetTaskName (pass ""
+// for either when not available). Returns (nil, nil) if the workflow exists
+// but no matching edge is found.
+func (r *WorkflowEdgeResource) findEdge(ctx context.Context, workflowName, sourceId, targetId, sourceTaskName, targetTaskName string) (*WorkflowEdgeResponseModel, error) {
+	edges, err := r.fetchEdges(ctx, workflowName)
+	if err != nil {
+		return nil, err
+	}
+	return matchEdge(edges, sourceId, targetId, sourceTaskName, targetTaskName), nil
 }
 
 func (r *WorkflowEdgeResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -465,7 +516,7 @@ func (r *WorkflowEdgeResource) Create(ctx context.Context, req resource.CreateRe
 
 	// Read back the created edge to populate computed fields (e.g. the
 	// resolved `condition`, which UAC defaults to Success when unset).
-	edge, err := r.findEdge(ctx, data.WorkflowName.ValueString(), data.SourceId.ValueString(), data.TargetId.ValueString())
+	edge, err := r.findEdge(ctx, data.WorkflowName.ValueString(), data.SourceId.ValueString(), data.TargetId.ValueString(), "", "")
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Created Workflow Edge",
@@ -484,6 +535,8 @@ func (r *WorkflowEdgeResource) Create(ctx context.Context, req resource.CreateRe
 	}
 	data.StraightEdge = types.BoolValue(edge.StraightEdge)
 	data.Condition = conditionFromAPI(edge.Condition)
+	data.SourceTaskName = StringValueOrNull(edge.SourceId.TaskName)
+	data.TargetTaskName = StringValueOrNull(edge.TargetId.TaskName)
 
 	tflog.Debug(ctx, "Created workflow edge", map[string]any{
 		"source_id": data.SourceId.ValueString(),
@@ -501,8 +554,11 @@ func (r *WorkflowEdgeResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	// Look up the specific edge matching source and target
-	edge, err := r.findEdge(ctx, data.WorkflowName.ValueString(), data.SourceId.ValueString(), data.TargetId.ValueString())
+	// Look up the specific edge matching source and target, falling back to
+	// matching by task name if the vertex IDs UAC returns have shifted since
+	// state was last written (see matchEdge).
+	edge, err := r.findEdge(ctx, data.WorkflowName.ValueString(), data.SourceId.ValueString(), data.TargetId.ValueString(),
+		data.SourceTaskName.ValueString(), data.TargetTaskName.ValueString())
 	if err != nil {
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.StatusCode == 404 {
 			tflog.Debug(ctx, "Workflow not found, removing edge from state", map[string]any{
@@ -527,6 +583,16 @@ func (r *WorkflowEdgeResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
+	// Self-heal source_id/target_id - UAC may have renumbered vertex IDs
+	// elsewhere in the workflow since state was last written. The
+	// corresponding stonebranch_workflow_vertex resources self-heal to the
+	// same live IDs via their own Read(), so config's interpolated
+	// source_id/target_id will match these refreshed values and no forced
+	// replace is triggered.
+	data.SourceId = types.StringValue(edge.SourceId.Value)
+	data.TargetId = types.StringValue(edge.TargetId.Value)
+	data.SourceTaskName = StringValueOrNull(edge.SourceId.TaskName)
+	data.TargetTaskName = StringValueOrNull(edge.TargetId.TaskName)
 	data.StraightEdge = types.BoolValue(edge.StraightEdge)
 	data.Condition = conditionFromAPI(edge.Condition)
 
@@ -578,7 +644,7 @@ func (r *WorkflowEdgeResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	// Read back the updated edge to populate computed fields.
-	edge, err := r.findEdge(ctx, data.WorkflowName.ValueString(), data.SourceId.ValueString(), data.TargetId.ValueString())
+	edge, err := r.findEdge(ctx, data.WorkflowName.ValueString(), data.SourceId.ValueString(), data.TargetId.ValueString(), "", "")
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Updated Workflow Edge",
@@ -610,6 +676,8 @@ func (r *WorkflowEdgeResource) Update(ctx context.Context, req resource.UpdateRe
 	if condAPI != nil {
 		data.Condition = conditionFromAPI(condAPI)
 	}
+	data.SourceTaskName = StringValueOrNull(edge.SourceId.TaskName)
+	data.TargetTaskName = StringValueOrNull(edge.TargetId.TaskName)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -663,7 +731,7 @@ func (r *WorkflowEdgeResource) ImportState(ctx context.Context, req resource.Imp
 	}
 	workflowName, sourceId, targetId := parts[0], parts[1], parts[2]
 
-	edge, err := r.findEdge(ctx, workflowName, sourceId, targetId)
+	edge, err := r.findEdge(ctx, workflowName, sourceId, targetId, "", "")
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Workflow Edges",
@@ -680,11 +748,13 @@ func (r *WorkflowEdgeResource) ImportState(ctx context.Context, req resource.Imp
 	}
 
 	data := WorkflowEdgeResourceModel{
-		WorkflowName: types.StringValue(workflowName),
-		SourceId:     types.StringValue(sourceId),
-		TargetId:     types.StringValue(targetId),
-		StraightEdge: types.BoolValue(edge.StraightEdge),
-		Condition:    conditionFromAPI(edge.Condition),
+		WorkflowName:   types.StringValue(workflowName),
+		SourceId:       types.StringValue(sourceId),
+		TargetId:       types.StringValue(targetId),
+		StraightEdge:   types.BoolValue(edge.StraightEdge),
+		Condition:      conditionFromAPI(edge.Condition),
+		SourceTaskName: StringValueOrNull(edge.SourceId.TaskName),
+		TargetTaskName: StringValueOrNull(edge.TargetId.TaskName),
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

@@ -73,6 +73,70 @@ type TaskRefResponse struct {
 	SysId string `json:"sysId,omitempty"`
 }
 
+// matchVertex resolves the live vertex corresponding to a task previously
+// recorded in state, using task_name as the durable identity rather than
+// vertex_id. UAC renumbers vertexId as a workflow's graph changes elsewhere
+// (vertices added/removed anywhere in the workflow), so a vertex_id stored
+// in prior state can silently point at a different task by the time Read()
+// runs - trusting it produces false "provider produced inconsistent result"
+// replacements. Returns (nil, nil) if no live vertex has this task name
+// (the vertex was removed from the workflow).
+//
+// A task can appear more than once in a workflow (confirmed live: e.g.
+// CBS_DAY-day-jobs has PGOUTSCT three times), in which case task name alone
+// doesn't disambiguate. When multiple candidates match, prefer the one whose
+// vertexId still equals priorVertexId (nothing renumbered for this specific
+// instance), then the one whose position still equals (priorX, priorY).
+// If neither tiebreak narrows it to exactly one, return an error rather than
+// silently guessing wrong.
+func matchVertex(vertices []WorkflowVertexResponseModel, taskName, priorVertexId, priorX, priorY string) (*WorkflowVertexResponseModel, error) {
+	var candidates []*WorkflowVertexResponseModel
+	for i := range vertices {
+		v := &vertices[i]
+		if v.Task != nil && v.Task.Value == taskName {
+			candidates = append(candidates, v)
+		}
+	}
+
+	switch len(candidates) {
+	case 0:
+		return nil, nil
+	case 1:
+		return candidates[0], nil
+	}
+
+	if priorVertexId != "" {
+		var byId []*WorkflowVertexResponseModel
+		for _, c := range candidates {
+			if c.VertexId == priorVertexId {
+				byId = append(byId, c)
+			}
+		}
+		if len(byId) == 1 {
+			return byId[0], nil
+		}
+	}
+
+	if priorX != "" || priorY != "" {
+		var byPos []*WorkflowVertexResponseModel
+		for _, c := range candidates {
+			if c.VertexX == priorX && c.VertexY == priorY {
+				byPos = append(byPos, c)
+			}
+		}
+		if len(byPos) == 1 {
+			return byPos[0], nil
+		}
+	}
+
+	return nil, fmt.Errorf(
+		"task %q appears %d times in this workflow and none of the %d matching vertices "+
+			"can be uniquely resolved by prior vertex_id or position; disambiguate by setting "+
+			"a distinct vertex_x/vertex_y for each instance, or re-import using the current vertex_id",
+		taskName, len(candidates), len(candidates),
+	)
+}
+
 func (r *WorkflowVertexResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_workflow_vertex"
 }
@@ -209,23 +273,24 @@ func (r *WorkflowVertexResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	// Query for the vertex
+	// Fetch the full vertex list for the workflow - vertexid is intentionally
+	// not passed as a filter, since the stored vertex_id may be stale (see
+	// matchVertex).
 	query := url.Values{}
 	query.Set("workflowname", data.WorkflowName.ValueString())
-	query.Set("vertexid", data.VertexId.ValueString())
 
 	respBody, err := r.client.Get(ctx, "/resources/workflow/vertices", query)
 	if err != nil {
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.StatusCode == 404 {
-			tflog.Debug(ctx, "Workflow vertex not found, removing from state", map[string]any{
-				"vertex_id": data.VertexId.ValueString(),
+			tflog.Debug(ctx, "Workflow not found, removing vertex from state", map[string]any{
+				"workflow": data.WorkflowName.ValueString(),
 			})
 			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics.AddError(
 			"Error Reading Workflow Vertex",
-			fmt.Sprintf("Could not read vertex %s: %s", data.VertexId.ValueString(), err),
+			fmt.Sprintf("Could not read vertices for workflow %s: %s", data.WorkflowName.ValueString(), err),
 		)
 		return
 	}
@@ -245,19 +310,24 @@ func (r *WorkflowVertexResource) Read(ctx context.Context, req resource.ReadRequ
 		vertices = []WorkflowVertexResponseModel{vertex}
 	}
 
-	if len(vertices) == 0 {
+	vertex, err := matchVertex(vertices, data.TaskName.ValueString(), data.VertexId.ValueString(), data.VertexX.ValueString(), data.VertexY.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Ambiguous Workflow Vertex", err.Error())
+		return
+	}
+	if vertex == nil {
 		tflog.Debug(ctx, "Workflow vertex not found, removing from state", map[string]any{
-			"vertex_id": data.VertexId.ValueString(),
+			"task_name": data.TaskName.ValueString(),
+			"workflow":  data.WorkflowName.ValueString(),
 		})
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	// Update model with response data
-	vertex := vertices[0]
-	if vertex.Task != nil && vertex.Task.Value != "" {
-		data.TaskName = types.StringValue(vertex.Task.Value)
-	}
+	// Update model with response data. VertexId self-heals to whatever ID
+	// this task currently has - UAC may have renumbered it since state was
+	// last written.
+	data.VertexId = types.StringValue(vertex.VertexId)
 	data.Alias = StringValueOrNull(vertex.Alias)
 	if vertex.VertexX != "" {
 		data.VertexX = types.StringValue(vertex.VertexX)
