@@ -14,13 +14,19 @@ func vtx(taskName, vertexId, x, y string) WorkflowVertexResponseModel {
 	}
 }
 
+func vtxAlias(taskName, alias, vertexId, x, y string) WorkflowVertexResponseModel {
+	v := vtx(taskName, vertexId, x, y)
+	v.Alias = alias
+	return v
+}
+
 func TestMatchVertex_UniqueTaskName(t *testing.T) {
 	vertices := []WorkflowVertexResponseModel{
 		vtx("TASK_A", "10", "100", "100"),
 		vtx("TASK_B", "11", "200", "100"),
 	}
 
-	got, err := matchVertex(vertices, "TASK_B", "999", "0", "0")
+	got, err := matchVertex(vertices, "TASK_B", "", "999", "0", "0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -34,7 +40,7 @@ func TestMatchVertex_NoMatch(t *testing.T) {
 		vtx("TASK_A", "10", "100", "100"),
 	}
 
-	got, err := matchVertex(vertices, "TASK_MISSING", "10", "100", "100")
+	got, err := matchVertex(vertices, "TASK_MISSING", "", "10", "100", "100")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,7 +56,7 @@ func TestMatchVertex_DuplicateTaskName_PriorIdTiebreak(t *testing.T) {
 		vtx("PGOUTSCT", "22", "300", "100"),
 	}
 
-	got, err := matchVertex(vertices, "PGOUTSCT", "21", "0", "0")
+	got, err := matchVertex(vertices, "PGOUTSCT", "", "21", "0", "0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -68,12 +74,29 @@ func TestMatchVertex_DuplicateTaskName_PositionTiebreak(t *testing.T) {
 
 	// Prior vertex_id (99) no longer exists among the candidates - UAC
 	// renumbered it - but the position still uniquely identifies the vertex.
-	got, err := matchVertex(vertices, "PGOUTSCT", "99", "200", "100")
+	got, err := matchVertex(vertices, "PGOUTSCT", "", "99", "200", "100")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got == nil || got.VertexId != "31" {
 		t.Fatalf("expected vertex 31 (matched by position), got %+v", got)
+	}
+}
+
+func TestMatchVertex_DuplicateTaskName_AliasTiebreak(t *testing.T) {
+	vertices := []WorkflowVertexResponseModel{
+		vtxAlias("PGOUTSCT", "PGOUTSCT_1", "50", "999", "999"),
+		vtxAlias("PGOUTSCT", "PGOUTSCT_2", "51", "888", "888"),
+	}
+
+	// Both vertex_id and position have drifted since state was written, but
+	// alias - user-assigned, never rewritten by UAC - still uniquely matches.
+	got, err := matchVertex(vertices, "PGOUTSCT", "PGOUTSCT_2", "99", "0", "0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil || got.VertexId != "51" {
+		t.Fatalf("expected vertex 51 (matched by alias), got %+v", got)
 	}
 }
 
@@ -83,8 +106,8 @@ func TestMatchVertex_DuplicateTaskName_TrulyAmbiguous(t *testing.T) {
 		vtx("PGOUTSCT", "41", "200", "100"),
 	}
 
-	// Neither prior vertex_id nor position narrows this to one candidate.
-	got, err := matchVertex(vertices, "PGOUTSCT", "99", "999", "999")
+	// Neither prior alias, vertex_id, nor position narrows this to one candidate.
+	got, err := matchVertex(vertices, "PGOUTSCT", "", "99", "999", "999")
 	if err == nil {
 		t.Fatalf("expected an ambiguity error, got vertex %+v", got)
 	}

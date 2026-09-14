@@ -84,12 +84,18 @@ type TaskRefResponse struct {
 //
 // A task can appear more than once in a workflow (confirmed live: e.g.
 // CBS_DAY-day-jobs has PGOUTSCT three times), in which case task name alone
-// doesn't disambiguate. When multiple candidates match, prefer the one whose
+// doesn't disambiguate. When multiple candidates match, prefer - in order -
+// the one whose alias still equals priorAlias (alias is user-assigned and
+// UAC never rewrites it, unlike vertexId/position below), then the one whose
 // vertexId still equals priorVertexId (nothing renumbered for this specific
 // instance), then the one whose position still equals (priorX, priorY).
-// If neither tiebreak narrows it to exactly one, return an error rather than
-// silently guessing wrong.
-func matchVertex(vertices []WorkflowVertexResponseModel, taskName, priorVertexId, priorX, priorY string) (*WorkflowVertexResponseModel, error) {
+// vertexId and position can both drift between two Reads if the workflow's
+// canvas is being edited live (confirmed against scheduler-tst: a task's
+// vertexId and vertex_x/vertex_y both changed between two API calls a couple
+// of minutes apart), so alias is the only tiebreak durable across that. If no
+// tiebreak narrows it to exactly one, return an error rather than silently
+// guessing wrong.
+func matchVertex(vertices []WorkflowVertexResponseModel, taskName, priorAlias, priorVertexId, priorX, priorY string) (*WorkflowVertexResponseModel, error) {
 	var candidates []*WorkflowVertexResponseModel
 	for i := range vertices {
 		v := &vertices[i]
@@ -103,6 +109,18 @@ func matchVertex(vertices []WorkflowVertexResponseModel, taskName, priorVertexId
 		return nil, nil
 	case 1:
 		return candidates[0], nil
+	}
+
+	if priorAlias != "" {
+		var byAlias []*WorkflowVertexResponseModel
+		for _, c := range candidates {
+			if c.Alias == priorAlias {
+				byAlias = append(byAlias, c)
+			}
+		}
+		if len(byAlias) == 1 {
+			return byAlias[0], nil
+		}
 	}
 
 	if priorVertexId != "" {
@@ -131,8 +149,8 @@ func matchVertex(vertices []WorkflowVertexResponseModel, taskName, priorVertexId
 
 	return nil, fmt.Errorf(
 		"task %q appears %d times in this workflow and none of the %d matching vertices "+
-			"can be uniquely resolved by prior vertex_id or position; disambiguate by setting "+
-			"a distinct vertex_x/vertex_y for each instance, or re-import using the current vertex_id",
+			"can be uniquely resolved by prior alias, vertex_id, or position; disambiguate by "+
+			"setting a distinct alias for each instance, or re-import using the current vertex_id",
 		taskName, len(candidates), len(candidates),
 	)
 }
@@ -310,7 +328,7 @@ func (r *WorkflowVertexResource) Read(ctx context.Context, req resource.ReadRequ
 		vertices = []WorkflowVertexResponseModel{vertex}
 	}
 
-	vertex, err := matchVertex(vertices, data.TaskName.ValueString(), data.VertexId.ValueString(), data.VertexX.ValueString(), data.VertexY.ValueString())
+	vertex, err := matchVertex(vertices, data.TaskName.ValueString(), data.Alias.ValueString(), data.VertexId.ValueString(), data.VertexX.ValueString(), data.VertexY.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Ambiguous Workflow Vertex", err.Error())
 		return
