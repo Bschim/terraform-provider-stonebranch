@@ -182,6 +182,11 @@ output "workflow_name" {
 - `condition` (Attributes) Branch condition controlling when the target task runs. Exactly one shape applies, selected by `type`: 'Status' (default, requires `status`), 'Exit Code' (requires `exit_code`), or 'Variable' (requires `first_value`, `operator`, `second_value`). If omitted entirely, UAC defaults to a Status condition of 'Success'. (see [below for nested schema](#nestedatt--condition))
 - `straight_edge` (Boolean) Whether to draw the edge as a straight line in the workflow diagram.
 
+### Read-Only
+
+- `source_task_name` (String) Task name of the source vertex, resolved from `source_id`. Used internally to re-resolve this edge if UAC renumbers vertex IDs elsewhere in the workflow.
+- `target_task_name` (String) Task name of the target vertex, resolved from `target_id`. Used internally to re-resolve this edge if UAC renumbers vertex IDs elsewhere in the workflow.
+
 <a id="nestedatt--condition"></a>
 ### Nested Schema for `condition`
 
