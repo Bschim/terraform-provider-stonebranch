@@ -34,6 +34,23 @@ func TestMatchEdge_FallsBackToTaskNames(t *testing.T) {
 	}
 }
 
+func TestMatchEdge_IdMatchRejectedWhenTaskNamesDisagree(t *testing.T) {
+	edges := []WorkflowEdgeResponseModel{
+		// Vertices got renumbered elsewhere in the workflow: IDs 4/5 now
+		// belong to a completely different task pair than what state
+		// recorded them for. The (4,5) pair still exists live, so a pure
+		// ID match would silently pick the wrong edge unless task names
+		// (already known from a prior Read) are cross-checked.
+		edg("4", "PGECHLOI", "5", "PGECHIPR"),
+		edg("2", "SRECHIPS", "3", "PGTRTLO2"),
+	}
+
+	got := matchEdge(edges, "4", "5", "SRECHIPS", "PGTRTLO2")
+	if got == nil || got.SourceId.Value != "2" || got.TargetId.Value != "3" {
+		t.Fatalf("expected fallback match on task names (2->3), got %+v", got)
+	}
+}
+
 func TestMatchEdge_NoMatch(t *testing.T) {
 	edges := []WorkflowEdgeResponseModel{
 		edg("20", "START", "21", "MIDDLE"),

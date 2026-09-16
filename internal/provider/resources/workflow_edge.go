@@ -410,23 +410,37 @@ func (r *WorkflowEdgeResource) fetchEdges(ctx context.Context, workflowName stri
 // is correct immediately after Create/Update and remains correct as long as
 // nothing else in the workflow has caused UAC to renumber vertex IDs.
 //
-// If that fails, it falls back to matching by (source_task_name,
-// target_task_name) - task names are a durable identity, unlike vertex IDs.
-// A live scan of every edge across all workflows found zero collisions on
-// this pair, so no further tiebreak is needed here (contrast with vertices,
-// where the same task can appear more than once in a workflow - see
-// matchVertex). The task-name arguments are optional (pass "" when not yet
-// known, e.g. right after Create/Update or during ImportState by vertex ID).
+// A pure ID match is only trusted if it doesn't contradict already-known
+// task names: vertex IDs get renumbered whenever anything else in the
+// workflow's graph changes, so a stale (source_id, target_id) pair can end
+// up coincidentally matching a live edge between two completely different
+// tasks (confirmed live: an edge recorded as source_id=4/target_id=5 for
+// task pair SRECHIPS->PGTRTLO2 silently "matched" a live edge 4->5 that, post-
+// renumbering, actually connected PGECHLOI->PGECHIPR). When prior task names
+// are known and disagree with the ID-matched candidate, that candidate is
+// rejected and matching falls through to the task-name search below.
+//
+// The task-name fallback matches by (source_task_name, target_task_name) -
+// task names are a durable identity, unlike vertex IDs. A live scan of every
+// edge across all workflows found zero collisions on this pair, so no
+// further tiebreak is needed here (contrast with vertices, where the same
+// task can appear more than once in a workflow - see matchVertex). The
+// task-name arguments are optional (pass "" when not yet known, e.g. right
+// after Create/Update or during ImportState by vertex ID).
 func matchEdge(edges []WorkflowEdgeResponseModel, sourceId, targetId, sourceTaskName, targetTaskName string) *WorkflowEdgeResponseModel {
+	knownTaskNames := sourceTaskName != "" && targetTaskName != ""
 	for i := range edges {
 		edge := &edges[i]
 		if edge.SourceId != nil && edge.TargetId != nil &&
 			edge.SourceId.Value == sourceId && edge.TargetId.Value == targetId {
+			if knownTaskNames && (edge.SourceId.TaskName != sourceTaskName || edge.TargetId.TaskName != targetTaskName) {
+				continue
+			}
 			return edge
 		}
 	}
 
-	if sourceTaskName == "" || targetTaskName == "" {
+	if !knownTaskNames {
 		return nil
 	}
 	for i := range edges {
