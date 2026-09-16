@@ -57,3 +57,24 @@ func TestMatchEdge_NoTaskNamesProvided_NoFallback(t *testing.T) {
 		t.Fatalf("expected no match without task names, got %+v", got)
 	}
 }
+
+func TestCanConfirmEdgeDeleted(t *testing.T) {
+	cases := []struct {
+		name                           string
+		sourceTaskName, targetTaskName string
+		want                           bool
+	}{
+		{"both known - fallback was attempted, no match is trustworthy", "START", "MIDDLE", true},
+		{"source missing - fallback was skipped, can't trust", "", "MIDDLE", false},
+		{"target missing - fallback was skipped, can't trust", "START", "", false},
+		{"both missing - never backfilled, can't trust", "", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := canConfirmEdgeDeleted(tc.sourceTaskName, tc.targetTaskName)
+			if got != tc.want {
+				t.Fatalf("canConfirmEdgeDeleted(%q, %q) = %v, want %v", tc.sourceTaskName, tc.targetTaskName, got, tc.want)
+			}
+		})
+	}
+}

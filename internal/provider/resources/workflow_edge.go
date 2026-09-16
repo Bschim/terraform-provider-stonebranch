@@ -439,6 +439,19 @@ func matchEdge(edges []WorkflowEdgeResponseModel, sourceId, targetId, sourceTask
 	return nil
 }
 
+// canConfirmEdgeDeleted reports whether a failed match (no live edge found by
+// either the vertex-ID fast path or the task-name fallback in matchEdge) can
+// be trusted as "this edge was actually deleted". It can only be trusted if
+// the task-name fallback was actually attempted - i.e. both prior task names
+// are known - since matchEdge silently skips the fallback otherwise. Without
+// this check, an edge whose vertex IDs drifted but whose task names were
+// never backfilled into state looks identical to a genuinely deleted edge,
+// and Read() would wrongly remove it from state (leading to a duplicate
+// create on the next apply).
+func canConfirmEdgeDeleted(priorSourceTaskName, priorTargetTaskName string) bool {
+	return priorSourceTaskName != "" && priorTargetTaskName != ""
+}
+
 // findEdge fetches all edges in a workflow and resolves the one matching
 // sourceId/targetId, falling back to sourceTaskName/targetTaskName (pass ""
 // for either when not available). Returns (nil, nil) if the workflow exists
@@ -575,6 +588,30 @@ func (r *WorkflowEdgeResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	if edge == nil {
+		// If the fast (source_id, target_id) path failed and we have no prior
+		// source_task_name/target_task_name to fall back on, we cannot tell
+		// "this edge was genuinely deleted" apart from "vertex IDs drifted and
+		// we've never had a chance to record its task names" - the latter is
+		// expected on the first Read after upgrading to a provider version
+		// that added these fields. Treating it as deleted would silently drop
+		// a live edge from state and then plan to create a duplicate on next
+		// apply. Error instead; re-running the task-name backfill (see
+		// CLAUDE.md/PR history) or re-importing resolves it.
+		if !canConfirmEdgeDeleted(data.SourceTaskName.ValueString(), data.TargetTaskName.ValueString()) {
+			resp.Diagnostics.AddError(
+				"Cannot Confirm Workflow Edge Still Exists",
+				fmt.Sprintf(
+					"No live edge matches source_id %q / target_id %q in workflow %q, and this resource's "+
+						"source_task_name/target_task_name are not yet recorded in state, so it's not possible "+
+						"to tell whether the edge was actually deleted or its vertex IDs just drifted (UAC "+
+						"renumbers vertex IDs when the workflow's graph changes elsewhere). Backfill "+
+						"source_task_name/target_task_name in state from the corresponding workflow_vertex "+
+						"resources, or re-import this edge using its current vertex IDs.",
+					data.SourceId.ValueString(), data.TargetId.ValueString(), data.WorkflowName.ValueString(),
+				),
+			)
+			return
+		}
 		tflog.Debug(ctx, "Workflow edge not found, removing from state", map[string]any{
 			"source_id": data.SourceId.ValueString(),
 			"target_id": data.TargetId.ValueString(),
