@@ -436,24 +436,25 @@ func (r *TaskWorkflowResource) Update(ctx context.Context, req resource.UpdateRe
 	// Build API model
 	apiModel := r.toAPIModel(ctx, &data)
 
-	// The API validates runCriteria/stepActions/stepConditions task references
-	// against the workflowVertices array included in the same request rather
-	// than against persisted state, so fetch and echo back the task's current
-	// vertices whenever any of those fields are set.
-	if taskWorkflowHasCriteriaFields(&data) {
-		vertices, err := r.fetchWorkflowVertices(ctx, data.Name.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error Fetching Workflow Vertices",
-				fmt.Sprintf("Could not fetch current vertices for workflow task %s: %s", data.Name.ValueString(), err),
-			)
-			return
-		}
-		apiModel.WorkflowVertices = vertices
+	// The API treats a PUT /resources/task with no workflowVertices field as
+	// "clear the vertices" rather than "leave unchanged" (confirmed: omitting
+	// it on an update dropped numberOfTasks to 0 and detached the workflow's
+	// tasks). It also validates runCriteria/stepActions/stepConditions task
+	// references against the workflowVertices array included in the SAME
+	// request rather than against persisted state. So on every update, fetch
+	// and echo back the task's current vertices to avoid wiping them.
+	vertices, err := r.fetchWorkflowVertices(ctx, data.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Fetching Workflow Vertices",
+			fmt.Sprintf("Could not fetch current vertices for workflow task %s: %s", data.Name.ValueString(), err),
+		)
+		return
 	}
+	apiModel.WorkflowVertices = vertices
 
 	// Update the task
-	_, err := r.client.Put(ctx, "/resources/task", apiModel)
+	_, err = r.client.Put(ctx, "/resources/task", apiModel)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Updating Workflow Task",
@@ -523,15 +524,6 @@ func (r *TaskWorkflowResource) readTask(ctx context.Context, data *TaskWorkflowR
 
 	r.fromAPIModel(ctx, &apiModel, data)
 	return nil
-}
-
-// taskWorkflowHasCriteriaFields reports whether any of the run_criteria,
-// step_actions, or step_conditions fields are set with at least one entry.
-func taskWorkflowHasCriteriaFields(data *TaskWorkflowResourceModel) bool {
-	hasElements := func(list types.List) bool {
-		return !list.IsNull() && !list.IsUnknown() && len(list.Elements()) > 0
-	}
-	return hasElements(data.RunCriteria) || hasElements(data.StepActions) || hasElements(data.StepConditions)
 }
 
 // fetchWorkflowVertices fetches the raw workflowVertices JSON for the named
